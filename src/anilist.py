@@ -1,3 +1,5 @@
+# src/nilist.py
+
 import requests
 import logging
 
@@ -80,7 +82,7 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100, include_adul
             if not page_media:
                 break
             
-            # Filter out adult content if include_adult is False
+            # NO HENTAI
             if not include_adult:
                 page_media = [anime for anime in page_media if not anime.get("isAdult", False)]
             

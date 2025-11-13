@@ -1,3 +1,5 @@
-"""Seasonal Tierlist Maker - Your friendly neighborhood glorified image thief for seasonal anime"""
+# src/__init__.py
 
-__version__ = "1.0.0"
+"""Man, I'm so lasy that I had to vibe code this shit LMFAO"""
+
+__version__ = "0.1.6"
