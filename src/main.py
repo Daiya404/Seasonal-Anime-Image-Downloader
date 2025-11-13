@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from .anilist import get_seasonal_anime
-from .downloader import Downloader, generate_tierlist_html
+from .downloader import Downloader
 from .utils import get_current_season
 
 
@@ -54,11 +54,6 @@ def main():
         help="Per-worker delay between downloads (seconds)"
     )
     parser.add_argument(
-        "--no-html",
-        action="store_true",
-        help="Do not generate tierlist HTML"
-    )
-    parser.add_argument(
         "--no-json",
         action="store_true",
         help="Do not output metadata JSON"
@@ -77,7 +72,7 @@ def main():
     setup_logging(logfile)
 
     logging.info("=" * 60)
-    logging.info(f"Seasonal Tierlist Maker - {season} {year}")
+    logging.info(f"Seasonal Anime Image Downloader - {season} {year}")
     logging.info("=" * 60)
     
     logging.info(f"Fetching {season} {year} from AniList API...")
@@ -112,21 +107,12 @@ def main():
         logging.error(f"Download failed: {e}")
         return 1
 
-    if not args.no_html:
-        try:
-            html_path = generate_tierlist_html(out_dir / season_folder_name)
-            if html_path:
-                logging.info(f"Tierlist HTML generated: {html_path}")
-            else:
-                logging.warning("No images found, HTML generation skipped")
-        except Exception as e:
-            logging.error(f"Failed to generate HTML: {e}")
-
     if not args.no_json:
         logging.info("Metadata saved alongside images")
 
     logging.info("=" * 60)
-    logging.info("All done. Your glorified image theft stands ready.")
+    logging.info(f"Images saved to: {out_dir / season_folder_name}")
+    logging.info("Upload them to TierMaker.com to create your tierlist!")
     logging.info("=" * 60)
     
     return 0

@@ -1,16 +1,20 @@
-# Seasonal Tierlist Maker
+# Seasonal Anime Image Downloader
 
 Your friendly neighborhood glorified image thief for seasonal anime 🎬
 
+Download all anime cover images from any season to use with TierMaker or other tierlist creators!
+
 ## What This Does
 
-Downloads anime cover images from AniList for a given season and generates an interactive HTML tierlist maker. Perfect for creating your personal anime rankings!
+Downloads anime cover images from AniList for a given season. Perfect for:
+- Creating tierlists on TierMaker.com
+- Building your own anime ranking tools
+- Collecting seasonal anime artwork
 
 ## Features
 
 - 🔍 Fetches seasonal anime from AniList API
 - 📥 Downloads cover images in parallel with retry logic
-- 🎨 Generates drag-and-drop HTML tierlist interface
 - 📊 Saves metadata JSON for reference
 - ⚡ Rate-limited and concurrent downloads
 - 🔄 Skips already downloaded images
@@ -19,8 +23,8 @@ Downloads anime cover images from AniList for a given season and generates an in
 
 ```bash
 # Clone the repository
-git clone https://github.com/Daiya404/Seasonal-Tierlist-Maker.git
-cd Seasonal-Tierlist-Maker
+git clone https://github.com/Daiya404/Seasonal-Anime-Downloader.git
+cd Seasonal-Anime-Downloader
 
 # Install dependencies
 pip install -r requirements.txt
@@ -46,7 +50,6 @@ python -m src.main \
   --out ./output \
   --workers 10 \
   --delay 0.1 \
-  --no-html \
   --no-json
 ```
 
@@ -59,7 +62,6 @@ python -m src.main \
 | `--out` | Output directory | `seasonal` |
 | `--workers` | Number of parallel download workers | 8 |
 | `--delay` | Delay between downloads per worker (seconds) | 0.12 |
-| `--no-html` | Skip HTML tierlist generation | False |
 | `--no-json` | Skip metadata JSON output | False |
 
 ## Output Structure
@@ -70,16 +72,17 @@ seasonal/
 │   ├── 001 - Anime Title 1.jpg
 │   ├── 002 - Anime Title 2.jpg
 │   ├── ...
-│   ├── metadata.json
-│   └── tierlist.html
+│   └── metadata.json
 └── seasonal_downloader.log
 ```
 
-## Using the Tierlist
+## Using with TierMaker
 
-1. Open `tierlist.html` in your browser
-2. Drag and drop anime covers into S, A, B, C, D, or F tiers
-3. Take a screenshot when you're done!
+1. Run the downloader for your desired season
+2. Go to [TierMaker.com](https://tiermaker.com)
+3. Click "Create a Tier List"
+4. Upload all the downloaded images
+5. Create your rankings!
 
 ## Requirements
 
