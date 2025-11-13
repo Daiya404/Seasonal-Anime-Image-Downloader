@@ -63,6 +63,7 @@ python -m src.main \
 | `--workers` | Number of parallel download workers | 8 |
 | `--delay` | Delay between downloads per worker (seconds) | 0.12 |
 | `--no-json` | Skip metadata JSON output | False |
+| `--include-adult` | Include adult/hentai content | False |
 
 ## Output Structure
 

@@ -4,7 +4,7 @@ import logging
 API_URL = "https://graphql.anilist.co"
 
 
-def get_seasonal_anime(season: str, year: int, per_page: int = 100):
+def get_seasonal_anime(season: str, year: int, per_page: int = 100, include_adult: bool = False):
     """
     Fetch seasonal anime from AniList API
     
@@ -12,12 +12,13 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100):
         season: Season name (WINTER, SPRING, SUMMER, FALL)
         year: Year (e.g., 2025)
         per_page: Results per page (max 100)
+        include_adult: Whether to include adult/hentai content (default: False)
     
     Returns:
         List of anime dictionaries with id, title, coverImage, siteUrl
     """
     query = """
-    query ($season: MediaSeason, $year: Int, $page: Int, $perPage: Int) {
+    query ($season: MediaSeason, $year: Int, $page: Int, $perPage: Int, $isAdult: Boolean) {
         Page(page: $page, perPage: $perPage) {
             pageInfo { 
                 total
@@ -26,7 +27,7 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100):
                 lastPage
                 hasNextPage
             }
-            media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) {
+            media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC, isAdult: $isAdult) {
                 id
                 title { 
                     romaji
@@ -41,6 +42,8 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100):
                 format
                 episodes
                 averageScore
+                isAdult
+                genres
             }
         }
     }
@@ -54,7 +57,8 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100):
             "season": season.upper(),
             "year": year,
             "page": page,
-            "perPage": per_page
+            "perPage": per_page,
+            "isAdult": include_adult
         }
         
         try:
@@ -75,6 +79,10 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100):
             
             if not page_media:
                 break
+            
+            # Filter out adult content if include_adult is False
+            if not include_adult:
+                page_media = [anime for anime in page_media if not anime.get("isAdult", False)]
             
             results.extend(page_media)
             

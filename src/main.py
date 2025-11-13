@@ -58,6 +58,11 @@ def main():
         action="store_true",
         help="Do not output metadata JSON"
     )
+    parser.add_argument(
+        "--include-adult",
+        action="store_true",
+        help="Include adult/hentai content (default: False)"
+    )
     
     args = parser.parse_args()
 
@@ -76,8 +81,11 @@ def main():
     logging.info("=" * 60)
     
     logging.info(f"Fetching {season} {year} from AniList API...")
+    if not args.include_adult:
+        logging.info("Filtering out adult content (use --include-adult to disable)")
+    
     try:
-        anime_list = get_seasonal_anime(season, year)
+        anime_list = get_seasonal_anime(season, year, include_adult=args.include_adult)
         logging.info(f"Successfully fetched {len(anime_list)} anime titles")
     except Exception as e:
         logging.error(f"Failed to fetch anime list: {e}")
