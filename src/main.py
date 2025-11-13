@@ -66,7 +66,6 @@ def main():
     
     args = parser.parse_args()
 
-    # Determine season and year
     season = args.season or get_current_season()
     year = args.year or datetime.now().year
 
@@ -81,7 +80,6 @@ def main():
     logging.info(f"Seasonal Tierlist Maker - {season} {year}")
     logging.info("=" * 60)
     
-    # Fetch anime list from AniList
     logging.info(f"Fetching {season} {year} from AniList API...")
     try:
         anime_list = get_seasonal_anime(season, year)
@@ -94,7 +92,6 @@ def main():
         logging.warning("No anime found for this season. Exiting.")
         return 0
 
-    # Download covers
     logging.info(f"Starting download with {args.workers} workers...")
     dl = Downloader(
         out_dir=out_dir,
@@ -105,7 +102,6 @@ def main():
     try:
         results = dl.download_all(anime_list, season_folder_name)
         
-        # Count results
         success = sum(1 for r in results if r.get("status") == "ok")
         skipped = sum(1 for r in results if r.get("status") == "skipped")
         failed = sum(1 for r in results if r.get("status") == "failed")
@@ -116,7 +112,6 @@ def main():
         logging.error(f"Download failed: {e}")
         return 1
 
-    # Generate HTML tierlist
     if not args.no_html:
         try:
             html_path = generate_tierlist_html(out_dir / season_folder_name)

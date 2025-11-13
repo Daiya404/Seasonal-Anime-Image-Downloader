@@ -14,7 +14,7 @@ class Downloader:
     def __init__(self, out_dir: str, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0):
         self.out_dir = Path(out_dir)
         self.max_workers = max_workers
-        self.delay = delay  # delay between requests per worker (simple rate limiting)
+        self.delay = delay
         self.retries = retries
         self.backoff = backoff
         self.session = requests.Session()
@@ -41,7 +41,6 @@ class Downloader:
                 resp.raise_for_status()
                 with open(filepath, "wb") as f:
                     f.write(resp.content)
-                # naive per-worker throttle
                 time.sleep(self.delay)
                 return {"status": "ok", "file": str(filepath), "title": title}
             except Exception as e:
@@ -70,7 +69,6 @@ class Downloader:
                     res = {"status": "failed", "file": None}
                 results.append(res)
 
-        # Save metadata JSON
         meta_path = season_folder / "metadata.json"
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump({"season": season_name, "items": results}, f, ensure_ascii=False, indent=2)
@@ -114,7 +112,7 @@ def generate_tierlist_html(season_folder: str, columns: int = 5):
         "                     transition: transform 0.2s; }",
         "        .anime-img:hover { transform: scale(1.05); }",
         "        .image-pool { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));",
-        f"                     gap: 10px; padding: 20px; background: #333; border-radius: 5px; }}",
+        "                     gap: 10px; padding: 20px; background: #333; border-radius: 5px; }",
         "        .image-pool img { width: 100%; height: auto; cursor: move; border-radius: 3px; }",
         "        h2 { margin: 20px 0 10px 0; }",
         "    </style>",
