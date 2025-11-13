@@ -65,6 +65,11 @@ def main():
         action="store_true",
         help="Include adult/hentai content (default: False)"
     )
+    parser.add_argument(
+        "--no-continuing",
+        action="store_true",
+        help="Exclude anime continuing from previous season (default: includes continuing anime)"
+    )
     
     args = parser.parse_args()
 
@@ -85,9 +90,16 @@ def main():
     logging.info(f"Fetching {season} {year} from AniList API...")
     if not args.include_adult:
         logging.info("Filtering out adult content (use --include-adult to disable)")
+    if not args.no_continuing:
+        logging.info("Including anime continuing from previous season (use --no-continuing to disable)")
     
     try:
-        anime_list = get_seasonal_anime(season, year, include_adult=args.include_adult)
+        anime_list = get_seasonal_anime(
+            season, 
+            year, 
+            include_adult=args.include_adult,
+            include_continuing=not args.no_continuing
+        )
         logging.info(f"Successfully fetched {len(anime_list)} anime titles")
     except Exception as e:
         logging.error(f"Failed to fetch anime list: {e}")
