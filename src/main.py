@@ -1,73 +1,141 @@
 import argparse
 import logging
 from pathlib import Path
+from datetime import datetime
 from .anilist import get_seasonal_anime
 from .downloader import Downloader, generate_tierlist_html
 from .utils import get_current_season
 
 
-
-
 def setup_logging(logfile: Path):
-fmt = "%(asctime)s - %(levelname)s - %(message)s"
-logging.basicConfig(level=logging.INFO, format=fmt, handlers=[
-logging.FileHandler(logfile),
-logging.StreamHandler()
-])
-
-
+    """Configure logging to both file and console"""
+    fmt = "%(asctime)s - %(levelname)s - %(message)s"
+    logging.basicConfig(
+        level=logging.INFO,
+        format=fmt,
+        handlers=[
+            logging.FileHandler(logfile, encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
 
 
 def main():
-parser = argparse.ArgumentParser(description="Seasonal anime cover downloader — glorified image thief")
-parser.add_argument("--season", type=str, help="Season name, e.g. Winter, Spring, Summer, Fall")
-parser.add_argument("--year", type=int, help="Year, e.g. 2026")
-parser.add_argument("--out", type=str, default="seasonal", help="Output base directory")
-parser.add_argument("--workers", type=int, default=8, help="Parallel download workers")
-parser.add_argument("--delay", type=float, default=0.12, help="Per-worker delay between downloads (sec)")
-parser.add_argument("--no-html", action="store_true", help="Do not generate tierlist HTML")
-parser.add_argument("--no-json", action="store_true", help="Do not output metadata json")
-args = parser.parse_args()
+    parser = argparse.ArgumentParser(
+        description="Seasonal anime cover downloader — glorified image thief",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "--season",
+        type=str,
+        help="Season name: Winter, Spring, Summer, or Fall (auto-detects if not specified)"
+    )
+    parser.add_argument(
+        "--year",
+        type=int,
+        help="Year (e.g., 2025). Defaults to current year"
+    )
+    parser.add_argument(
+        "--out",
+        type=str,
+        default="seasonal",
+        help="Output base directory"
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="Number of parallel download workers"
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.12,
+        help="Per-worker delay between downloads (seconds)"
+    )
+    parser.add_argument(
+        "--no-html",
+        action="store_true",
+        help="Do not generate tierlist HTML"
+    )
+    parser.add_argument(
+        "--no-json",
+        action="store_true",
+        help="Do not output metadata JSON"
+    )
+    
+    args = parser.parse_args()
 
+    # Determine season and year
+    season = args.season or get_current_season()
+    year = args.year or datetime.now().year
 
-season = args.season or get_current_season()
-year = args.year
-if year is None:
-from datetime import datetime
-year = datetime.now().year
+    season_folder_name = f"{season} {year}"
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
+    logfile = out_dir / "seasonal_downloader.log"
+    setup_logging(logfile)
 
-season_folder_name = f"{season} {year}"
-out_dir = Path(args.out)
-out_dir.mkdir(parents=True, exist_ok=True)
+    logging.info("=" * 60)
+    logging.info(f"Seasonal Tierlist Maker - {season} {year}")
+    logging.info("=" * 60)
+    
+    # Fetch anime list from AniList
+    logging.info(f"Fetching {season} {year} from AniList API...")
+    try:
+        anime_list = get_seasonal_anime(season, year)
+        logging.info(f"Successfully fetched {len(anime_list)} anime titles")
+    except Exception as e:
+        logging.error(f"Failed to fetch anime list: {e}")
+        return 1
 
+    if not anime_list:
+        logging.warning("No anime found for this season. Exiting.")
+        return 0
 
-logfile = out_dir / "seasonal_downloader.log"
-setup_logging(logfile)
+    # Download covers
+    logging.info(f"Starting download with {args.workers} workers...")
+    dl = Downloader(
+        out_dir=out_dir,
+        max_workers=args.workers,
+        delay=args.delay
+    )
+    
+    try:
+        results = dl.download_all(anime_list, season_folder_name)
+        
+        # Count results
+        success = sum(1 for r in results if r.get("status") == "ok")
+        skipped = sum(1 for r in results if r.get("status") == "skipped")
+        failed = sum(1 for r in results if r.get("status") == "failed")
+        
+        logging.info(f"Download complete: {success} downloaded, {skipped} skipped, {failed} failed")
+        
+    except Exception as e:
+        logging.error(f"Download failed: {e}")
+        return 1
 
+    # Generate HTML tierlist
+    if not args.no_html:
+        try:
+            html_path = generate_tierlist_html(out_dir / season_folder_name)
+            if html_path:
+                logging.info(f"Tierlist HTML generated: {html_path}")
+            else:
+                logging.warning("No images found, HTML generation skipped")
+        except Exception as e:
+            logging.error(f"Failed to generate HTML: {e}")
 
-logging.info(f"Fetching {season} {year} from AniList")
-anime_list = get_seasonal_anime(season, year)
-logging.info(f"Fetched {len(anime_list)} items")
+    if not args.no_json:
+        logging.info("Metadata saved alongside images")
 
-
-dl = Downloader(out_dir=out_dir, max_workers=args.workers, delay=args.delay)
-results = dl.download_all(anime_list, season_folder_name)
-
-
-if not args.no_json:
-logging.info("Metadata saved alongside images")
-
-
-if not args.no_html:
-html_path = generate_tierlist_html(out_dir / season_folder_name)
-logging.info(f"Tierlist HTML generated: {html_path}")
-
-
-logging.info("All done. Your glorified image theft stands ready.")
-
-
+    logging.info("=" * 60)
+    logging.info("All done. Your glorified image theft stands ready.")
+    logging.info("=" * 60)
+    
+    return 0
 
 
 if __name__ == '__main__':
-main()
+    exit(main())
