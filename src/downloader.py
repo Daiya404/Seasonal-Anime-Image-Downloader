@@ -41,10 +41,13 @@ class Downloader:
             logging.warning(f"No cover image URL for {title}")
             return {"status": "failed", "file": None, "title": title}
         
-        filename = f"{index:03d} - {title}.jpg"
+        filename = f"{index:03d} - {item['id']} - {title}.jpg"
         filepath = season_folder / filename
 
-        if filepath.exists() and filepath.stat().st_size > 1024:
+        existing = next(season_folder.glob(f"* - {item['id']} - *.jpg"), None)
+        if existing and existing.stat().st_size > 1024:
+            if existing != filepath:
+                existing.rename(filepath)  # rank changed, fix the number
             logging.info(f"Skipping existing {filename}")
             return {"status": "skipped", "file": str(filepath), "title": title}
 
