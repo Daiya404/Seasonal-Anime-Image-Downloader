@@ -14,7 +14,7 @@ from .utils import sanitize_filename
 
 
 class Downloader:
-    def __init__(self, out_dir: str, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0):
+    def __init__(self, out_dir: str | Path, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0):
         self.out_dir = Path(out_dir)
         self.max_workers = max_workers
         self.delay = delay
