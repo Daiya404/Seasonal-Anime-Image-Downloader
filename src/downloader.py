@@ -35,7 +35,8 @@ class Downloader:
 
     def _download_one(self, item, index, season_folder: Path):
         title = sanitize_filename(item.get("title", {}).get("romaji") or str(item.get("id")))
-        url = item.get("coverImage", {}).get("large") or item.get("coverImage", {}).get("extraLarge")
+        cover = item.get("coverImage") or {}
+        url = cover.get("extraLarge") or cover.get("large")
         
         if not url:
             logging.warning(f"No cover image URL for {title}")
