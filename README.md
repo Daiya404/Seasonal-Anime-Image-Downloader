@@ -7,17 +7,20 @@ Download all anime cover images from any season to use with TierMaker or other t
 ## What This Does
 
 Downloads anime cover images from AniList for a given season. Perfect for:
+
 - Creating tierlists on TierMaker.com
 - Building your own anime ranking tools
 - Collecting seasonal anime artwork
 
 ## Features
 
-- 🔍 Fetches seasonal anime from AniList API
+- 🔍 Fetches seasonal anime from AniList API, sorted by popularity
+- 🔄 Includes anime continuing from the previous season (with a configurable grace period)
 - 📥 Downloads cover images in parallel with retry logic
 - 📊 Saves metadata JSON for reference
-- ⚡ Rate-limited and concurrent downloads
-- 🔄 Skips already downloaded images
+- ⚡ Global rate limiting, and automatic waiting and retrying when AniList rate limits you
+- 🛡️ Safe writes, so interrupted downloads never leave broken images behind
+- ⏭️ Skips already downloaded images
 
 ## Installation
 
@@ -33,49 +36,57 @@ pip install -r requirements.txt
 ## Usage
 
 ### Basic Usage (Auto-detect current season)
+
 ```bash
-python -m src.main
+python -m src
 ```
 
 ### Specify Season and Year
+
 ```bash
-python -m src.main --season Winter --year 2025
+python -m src -s Winter -y 2025
 ```
 
 ### Full Options
+
 ```bash
-python -m src.main \
+python -m src \
   --season Fall \
   --year 2024 \
   --out ./output \
   --workers 10 \
-  --delay 0.1 \
+  --delay 0.2 \
+  --grace-days 14 \
   --no-json
 ```
 
 ## Arguments
 
-| Argument | Description | Default |
-|----------|-------------|---------|
-| `--season` | Season name (Winter/Spring/Summer/Fall) | Current season |
-| `--year` | Year (e.g., 2025) | Current year |
-| `--out` | Output directory | `seasonal` |
-| `--workers` | Number of parallel download workers | 8 |
-| `--delay` | Delay between downloads per worker (seconds) | 0.12 |
-| `--no-json` | Skip metadata JSON output | False |
-| `--include-adult` | Include adult/hentai content | False |
+| Argument          | Short | Description                                                                     | Default        |
+| ----------------- | ----- | ------------------------------------------------------------------------------- | -------------- |
+| `--season`        | `-s`  | Season name (Winter/Spring/Summer/Fall, `autumn` also works)                    | Current season |
+| `--year`          | `-y`  | Year (e.g., 2025)                                                               | Current year   |
+| `--out`           | `-o`  | Output directory                                                                | `seasonal`     |
+| `--workers`       | `-w`  | Number of parallel download workers                                             | 8              |
+| `--delay`         | `-d`  | Minimum delay between image requests, shared by all workers (seconds)           | 0.15           |
+| `--grace-days`    | `-g`  | Days into a season a previous-season show must still air to count as continuing | 21             |
+| `--no-continuing` |       | Exclude anime continuing from the previous season                               | False          |
+| `--no-json`       |       | Skip metadata JSON output                                                       | False          |
+| `--include-adult` |       | Include adult/hentai content                                                    | False          |
 
 ## Output Structure
 
 ```
 seasonal/
 ├── Winter 2025/
-│   ├── 001 - Anime Title 1.jpg
-│   ├── 002 - Anime Title 2.jpg
+│   ├── 001 - 12345 - Anime Title 1.jpg
+│   ├── 002 - 67890 - Anime Title 2.jpg
 │   ├── ...
 │   └── metadata.json
 └── seasonal_downloader.log
 ```
+
+File names are `rank - AniList ID - title`, and `metadata.json` lists the anime in popularity order.
 
 ## Using with TierMaker
 
@@ -87,7 +98,7 @@ seasonal/
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.10+
 - requests
 - tqdm
 
@@ -105,4 +116,4 @@ Pull requests welcome! Please feel free to submit issues or improvements.
 
 ---
 
-*Made with ❤️ for the anime community*
+_Made with ❤️ for the anime community_
