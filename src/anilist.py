@@ -39,14 +39,14 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100, include_adul
         per_page: Results per page (max 100)
         include_adult: Whether to include adult/hentai content (default: False)
         include_continuing: Whether to include anime continuing from previous season (default: True)
-    
+
     Returns:
         List of anime dictionaries with id, title, coverImage, siteUrl
     """
     query = """
     query ($season: MediaSeason, $year: Int, $page: Int, $perPage: Int, $isAdult: Boolean) {
         Page(page: $page, perPage: $perPage) {
-            pageInfo { 
+            pageInfo {
                 total
                 perPage
                 currentPage
@@ -55,6 +55,7 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100, include_adul
             }
             media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC, isAdult: $isAdult) {
                 id
+                popularity
                 title { 
                     romaji
                     english
@@ -141,17 +142,20 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100, include_adul
     return results
 
 
-def _fetch_season(query: str, season: str, year: int, per_page: int, include_adult: bool):
+def _fetch_season_filtered(query: str, season: str, year: int, per_page: int, is_adult: bool):
     """
-    Internal function to fetch anime for a specific season
-    
+    Internal function to fetch one page-through of a season, filtered strictly
+    by AniList's isAdult flag
+
     Args:
         query: GraphQL query string
         season: Season name (WINTER, SPRING, SUMMER, FALL)
         year: Year
         per_page: Results per page
-        include_adult: Whether to include adult content
-    
+        is_adult: Strict filter passed to AniList. True returns ONLY adult
+            media, False returns ONLY non-adult media (it is not an
+            "include" switch)
+
     Returns:
         List of anime dictionaries
     """
@@ -164,7 +168,7 @@ def _fetch_season(query: str, season: str, year: int, per_page: int, include_adu
             "year": year,
             "page": page,
             "perPage": per_page,
-            "isAdult": include_adult
+            "isAdult": is_adult,
         }
         
         try:
@@ -175,7 +179,7 @@ def _fetch_season(query: str, season: str, year: int, per_page: int, include_adu
             )
             resp.raise_for_status()
             data = resp.json()
-            
+
             if "errors" in data:
                 logging.error(f"GraphQL errors: {data['errors']}")
                 break
@@ -185,16 +189,12 @@ def _fetch_season(query: str, season: str, year: int, per_page: int, include_adu
             
             if not page_media:
                 break
-            
-            # NO HENTAI
-            if not include_adult:
-                page_media = [anime for anime in page_media if not anime.get("isAdult", False)]
-            
+
             results.extend(page_media)
             
             page_info = page_data.get("pageInfo", {})
             has_next = page_info.get("hasNextPage", False)
-            
+
             if not has_next:
                 break
             
@@ -207,4 +207,33 @@ def _fetch_season(query: str, season: str, year: int, per_page: int, include_adu
             logging.error(f"Unexpected error on page {page}: {e}")
             break
 
+    return results
+
+def _fetch_season(query: str, season: str, year: int, per_page: int, include_adult: bool):
+    """
+    Internal function to fetch anime for a specific season
+
+    AniList's isAdult filter is binary, so including adult content takes two
+    requests (non-adult, then adult). The results are merged, deduplicated by
+    id, and sorted by popularity.
+
+    Args:
+        query: GraphQL query string
+        season: Season name (WINTER, SPRING, SUMMER, FALL)
+        year: Year
+        per_page: Results per page
+        include_adult: If True, also fetch adult media in addition to
+            non-adult media; if False, fetch non-adult media only
+
+    Returns:
+        List of anime dictionaries, sorted by popularity (highest first)
+    """
+    flags = [False, True] if include_adult else [False]
+    results, seen = [], set()
+    for flag in flags:
+        for anime in _fetch_season_filtered(query, season, year, per_page, flag):
+            if anime["id"] not in seen:
+                seen.add(anime["id"])
+                results.append(anime)
+    results.sort(key=lambda a: a.get("popularity") or 0, reverse=True)
     return results
