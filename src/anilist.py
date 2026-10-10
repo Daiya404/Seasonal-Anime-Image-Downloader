@@ -138,7 +138,8 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 50, include_adult
             results.extend(continuing_anime)
         else:
             logging.info("No continuing anime found from previous season")
-    
+
+    results.sort(key=lambda a: a.get("popularity") or 0, reverse=True)
     return results
 
 def _post(query: str, variables: dict, retries: int = 3) -> dict:
