@@ -121,7 +121,7 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100, include_adul
             
             # Check if end date is after the start of current season
             end_year = end_date.get('year')
-            end_month = end_date.get('month', 12)
+            end_month = end_date.get('month') or 12
             
             if end_year and end_year >= year:
                 # Get approximate start month of current season
