@@ -1,5 +1,6 @@
 # src/anilist.py
 
+import time
 import requests
 import logging
 
@@ -141,6 +142,22 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100, include_adul
     
     return results
 
+def _post(query: str, variables: dict, retries: int = 3) -> dict:
+    """POST to AniList, sleeping and retrying when rate limited (HTTP 429)"""
+    for _ in range(retries):
+        resp = requests.post(
+            API_URL,
+            json={"query": query, "variables": variables},
+            timeout=30
+        )
+        if resp.status_code == 429:
+            wait = int(resp.headers.get("Retry-After", 60))
+            logging.warning(f"Rate limited by AniList, sleeping {wait}s")
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp.json()
+    raise RuntimeError("AniList rate limit: retries exhausted")
 
 def _fetch_season_filtered(query: str, season: str, year: int, per_page: int, is_adult: bool):
     """
@@ -170,41 +187,38 @@ def _fetch_season_filtered(query: str, season: str, year: int, per_page: int, is
             "perPage": per_page,
             "isAdult": is_adult,
         }
-        
+
         try:
-            resp = requests.post(
-                API_URL,
-                json={"query": query, "variables": variables},
-                timeout=30
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            data = _post(query, variables)
 
             if "errors" in data:
                 logging.error(f"GraphQL errors: {data['errors']}")
+                logging.error(f"Pagination aborted at page {page}, results are incomplete")
                 break
-            
+
             page_data = data.get("data", {}).get("Page", {})
             page_media = page_data.get("media", [])
-            
+
             if not page_media:
                 break
 
             results.extend(page_media)
-            
+
             page_info = page_data.get("pageInfo", {})
             has_next = page_info.get("hasNextPage", False)
 
             if not has_next:
                 break
-            
+
             page += 1
-            
+
         except requests.exceptions.RequestException as e:
             logging.error(f"Error fetching page {page}: {e}")
+            logging.error(f"Pagination aborted at page {page}, results are incomplete")
             break
         except Exception as e:
             logging.error(f"Unexpected error on page {page}: {e}")
+            logging.error(f"Pagination aborted at page {page}, results are incomplete")
             break
 
     return results
