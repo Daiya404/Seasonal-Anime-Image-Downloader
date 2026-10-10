@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from .anilist import get_seasonal_anime
 from .downloader import Downloader
-from .utils import get_current_season
+from .utils import get_current_season, validate_season, normalize_season, format_season_name
 
 
 def setup_logging(logfile: Path):
@@ -73,10 +73,16 @@ def main():
     
     args = parser.parse_args()
 
-    season = args.season or get_current_season()
+    if args.season:
+        if not validate_season(args.season):
+            parser.error(f"Invalid season '{args.season}'. Use winter, spring, summer, fall or autumn.")
+        season = normalize_season(args.season)
+    else:
+        season = normalize_season(get_current_season())
+
     year = args.year or datetime.now().year
 
-    season_folder_name = f"{season} {year}"
+    season_folder_name = format_season_name(season, year)
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
