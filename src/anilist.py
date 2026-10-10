@@ -31,14 +31,14 @@ def get_previous_season(season: str, year: int):
         return SEASON_ORDER[current_idx - 1], year
 
 
-def get_seasonal_anime(season: str, year: int, per_page: int = 100, include_adult: bool = False, include_continuing: bool = True):
+def get_seasonal_anime(season: str, year: int, per_page: int = 50, include_adult: bool = False, include_continuing: bool = True):
     """
     Fetch seasonal anime from AniList API, including continuing anime from previous season
     
     Args:
         season: Season name (WINTER, SPRING, SUMMER, FALL)
         year: Year (e.g., 2025)
-        per_page: Results per page (max 100)
+        per_page: Results per page (max 50)
         include_adult: Whether to include adult/hentai content (default: False)
         include_continuing: Whether to include anime continuing from previous season (default: True)
 
