@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
+import threading
 from tqdm import tqdm
 from typing import List
 from .utils import sanitize_filename
@@ -20,6 +21,17 @@ class Downloader:
         self.retries = retries
         self.backoff = backoff
         self.session = requests.Session()
+        self._rate_lock = threading.Lock()
+        self._next_slot = 0.0
+
+    def _throttle(self):
+        """Global spacing between requests, shared by all workers"""
+        with self._rate_lock:
+            now = time.monotonic()
+            wait = self._next_slot - now
+            self._next_slot = max(now, self._next_slot) + self.delay
+        if wait > 0:
+            time.sleep(wait)
 
     def _download_one(self, item, index, season_folder: Path):
         title = sanitize_filename(item.get("title", {}).get("romaji") or str(item.get("id")))
@@ -39,11 +51,11 @@ class Downloader:
         attempt = 0
         while attempt <= self.retries:
             try:
+                self._throttle()
                 resp = self.session.get(url, timeout=30)
                 resp.raise_for_status()
                 with open(filepath, "wb") as f:
                     f.write(resp.content)
-                time.sleep(self.delay)
                 return {"status": "ok", "file": str(filepath), "title": title}
             except Exception as e:
                 attempt += 1
