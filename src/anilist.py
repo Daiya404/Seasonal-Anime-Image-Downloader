@@ -4,7 +4,7 @@ import time
 import requests
 import logging
 from datetime import date, timedelta
-from .utils import SEASON_START_MONTH
+from .utils import SEASON_START_MONTH, format_season_name
 
 API_URL = "https://graphql.anilist.co"
 
@@ -101,7 +101,7 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 50, include_adult
     """
 
     # Current season
-    logging.info(f"Fetching {season.upper()} {year} anime...")
+    logging.info(f"Fetching {format_season_name(season, year)} anime...")
     current_season_anime = _fetch_season(query, season, year, per_page, include_adult)
     
     results = current_season_anime.copy()
@@ -110,7 +110,7 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 50, include_adult
     # Continuing anime from last season
     if include_continuing:
         prev_season, prev_year = get_previous_season(season, year)
-        logging.info(f"Fetching continuing anime from {prev_season} {prev_year}...")
+        logging.info(f"Fetching continuing anime from {format_season_name(prev_season, prev_year)}...")
         
         prev_season_anime = _fetch_season(query, prev_season, prev_year, per_page, include_adult)
         

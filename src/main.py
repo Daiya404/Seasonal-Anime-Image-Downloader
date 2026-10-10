@@ -52,8 +52,8 @@ def main():
     parser.add_argument(
         "--delay",
         type=float,
-        default=0.12,
-        help="Per-worker delay between downloads (seconds)"
+        default=0.15,
+        help="Minimum delay between image requests, shared by all workers (seconds)"
     )
     parser.add_argument(
         "--no-json",
@@ -93,10 +93,10 @@ def main():
     setup_logging(logfile)
 
     logging.info("=" * 60)
-    logging.info(f"Seasonal Anime Image Downloader - {season} {year}")
+    logging.info(f"Seasonal Anime Image Downloader - {season_folder_name}")
     logging.info("=" * 60)
     
-    logging.info(f"Fetching {season} {year} from AniList API...")
+    logging.info(f"Fetching {season_folder_name} from AniList API...")
     if not args.include_adult:
         logging.info("Filtering out adult content (use --include-adult to disable)")
     if not args.no_continuing:
