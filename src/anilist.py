@@ -3,6 +3,7 @@
 import time
 import requests
 import logging
+from .utils import SEASON_START_MONTH
 
 API_URL = "https://graphql.anilist.co"
 
@@ -127,9 +128,7 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 100, include_adul
             
             if end_year and end_year >= year:
                 # Get approximate start month of current season
-                season_start_month = {
-                    'WINTER': 1, 'SPRING': 4, 'SUMMER': 7, 'FALL': 10
-                }.get(season.upper(), 1)
+                season_start_month = SEASON_START_MONTH.get(season.upper(), 1)
                 
                 if end_year > year or (end_year == year and end_month >= season_start_month):
                     continuing_anime.append(anime)
