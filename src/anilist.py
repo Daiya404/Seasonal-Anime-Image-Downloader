@@ -3,6 +3,7 @@
 import time
 import requests
 import logging
+from datetime import date, timedelta
 from .utils import SEASON_START_MONTH
 
 API_URL = "https://graphql.anilist.co"
@@ -10,6 +11,14 @@ API_URL = "https://graphql.anilist.co"
 # Season order
 SEASON_ORDER = ["WINTER", "SPRING", "SUMMER", "FALL"]
 
+
+def _is_continuing(anime, season, year, grace_days):
+    end = anime.get("endDate") or {}
+    if not end.get("year"):
+        return True  # no end date known, assume still running
+    end_date = date(end["year"], end.get("month") or 12, end.get("day") or 28)
+    season_start = date(year, SEASON_START_MONTH[season.upper()], 1)
+    return end_date > season_start + timedelta(days=grace_days)
 
 def get_previous_season(season: str, year: int):
     """
@@ -31,16 +40,18 @@ def get_previous_season(season: str, year: int):
         return SEASON_ORDER[current_idx - 1], year
 
 
-def get_seasonal_anime(season: str, year: int, per_page: int = 50, include_adult: bool = False, include_continuing: bool = True):
+def get_seasonal_anime(season: str, year: int, per_page: int = 50, include_adult: bool = False, include_continuing: bool = True, grace_days: int = 21):
     """
     Fetch seasonal anime from AniList API, including continuing anime from previous season
-    
+
     Args:
         season: Season name (WINTER, SPRING, SUMMER, FALL)
         year: Year (e.g., 2025)
         per_page: Results per page (max 50)
         include_adult: Whether to include adult/hentai content (default: False)
         include_continuing: Whether to include anime continuing from previous season (default: True)
+        grace_days: Days into the new season a previous-season anime must still be
+            airing to count as continuing (default: 21)
 
     Returns:
         List of anime dictionaries with id, title, coverImage, siteUrl
@@ -104,34 +115,10 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 50, include_adult
         prev_season_anime = _fetch_season(query, prev_season, prev_year, per_page, include_adult)
         
         # Filter for anime that are still airing/continuing
-        continuing_anime = []
-        for anime in prev_season_anime:
-            # Skip if already in current season
-            if anime['id'] in current_ids:
-                continue
-            
-            # Check if anime is still airing or hasn't ended
-            status = anime.get('status', '')
-            end_date = anime.get('endDate', {})
-            
-            # Include if:
-            # 1. Status is RELEASING (still airing)
-            # 2. No end date set
-            # 3. End date is in the future or current season
-            if status == 'RELEASING' or not end_date or not end_date.get('year'):
-                continuing_anime.append(anime)
-                continue
-            
-            # Check if end date is after the start of current season
-            end_year = end_date.get('year')
-            end_month = end_date.get('month') or 12
-            
-            if end_year and end_year >= year:
-                # Get approximate start month of current season
-                season_start_month = SEASON_START_MONTH.get(season.upper(), 1)
-                
-                if end_year > year or (end_year == year and end_month >= season_start_month):
-                    continuing_anime.append(anime)
+        continuing_anime = [
+            a for a in prev_season_anime
+            if a["id"] not in current_ids and _is_continuing(a, season, year, grace_days)
+        ]
         
         if continuing_anime:
             logging.info(f"Found {len(continuing_anime)} continuing anime from previous season")

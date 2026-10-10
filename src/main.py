@@ -70,6 +70,9 @@ def main():
         action="store_true",
         help="Exclude anime continuing from previous season (default: includes continuing anime)"
     )
+
+    parser.add_argument("--grace-days", type=int, default=21,
+        help="Days into a season a previous-season show must still air to count as continuing")
     
     args = parser.parse_args()
 
@@ -104,7 +107,8 @@ def main():
             season, 
             year, 
             include_adult=args.include_adult,
-            include_continuing=not args.no_continuing
+            include_continuing=not args.no_continuing,
+            grace_days=args.grace_days
         )
         logging.info(f"Successfully fetched {len(anime_list)} anime titles")
     except Exception as e:
