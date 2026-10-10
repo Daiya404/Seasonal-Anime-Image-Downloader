@@ -54,8 +54,10 @@ class Downloader:
                 self._throttle()
                 resp = self.session.get(url, timeout=30)
                 resp.raise_for_status()
-                with open(filepath, "wb") as f:
+                tmp = filepath.with_name(filepath.name + ".part")
+                with open(tmp, "wb") as f:
                     f.write(resp.content)
+                os.replace(tmp, filepath)
                 return {"status": "ok", "file": str(filepath), "title": title}
             except Exception as e:
                 attempt += 1
