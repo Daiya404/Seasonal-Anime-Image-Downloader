@@ -53,23 +53,26 @@ class Downloader:
         
         return {"status": "failed", "file": str(filepath), "title": title}
 
-    def download_all(self, anime_list: List[dict], season_name: str):
+    def download_all(self, anime_list: List[dict], season_name: str) -> List[dict]:
         season_folder = self.out_dir / season_name
         season_folder.mkdir(parents=True, exist_ok=True)
 
-        results = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as exc:
-            futures = {}
-            for idx, item in enumerate(anime_list, start=1):
-                futures[exc.submit(self._download_one, item, idx, season_folder)] = item
+            futures = [
+                exc.submit(self._download_one, item, idx + 1, season_folder)
+                for idx, item in enumerate(anime_list)
+            ]
 
-            for fut in tqdm(as_completed(futures), total=len(futures), desc="Downloading", unit="img"):
-                try:
-                    res = fut.result()
-                except Exception as e:
-                    logging.exception(f"A future failed outright: {e}")
-                    res = {"status": "failed", "file": None}
-                results.append(res)
+            for _ in tqdm(as_completed(futures), total=len(futures), desc="Downloading", unit="img"):
+                pass
+
+        results: List[dict] = []
+        for fut, item in zip(futures, anime_list):
+            try:
+                results.append(fut.result())
+            except Exception as e:
+                logging.exception(f"A future failed outright: {e}")
+                results.append({"status": "failed", "file": None, "title": str(item.get("id"))})
 
         meta_path = season_folder / "metadata.json"
         with open(meta_path, "w", encoding="utf-8") as f:
