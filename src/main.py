@@ -123,20 +123,20 @@ def main():
     )
     
     try:
-        results = dl.download_all(anime_list, season_folder_name)
-        
+        results = dl.download_all(anime_list, season_folder_name, write_json=not args.no_json)
+
         success = sum(1 for r in results if r.get("status") == "ok")
         skipped = sum(1 for r in results if r.get("status") == "skipped")
         failed = sum(1 for r in results if r.get("status") == "failed")
-        
+
         logging.info(f"Download complete: {success} downloaded, {skipped} skipped, {failed} failed")
-        
+
     except Exception as e:
         logging.error(f"Download failed: {e}")
         return 1
 
     if not args.no_json:
-        logging.info("Metadata saved alongside images")
+        logging.info(f"Metadata saved to {out_dir / season_folder_name / 'metadata.json'}")
 
     logging.info("=" * 60)
     logging.info(f"Images saved to: {out_dir / season_folder_name}")

@@ -65,7 +65,7 @@ class Downloader:
         
         return {"status": "failed", "file": str(filepath), "title": title}
 
-    def download_all(self, anime_list: List[dict], season_name: str) -> List[dict]:
+    def download_all(self, anime_list: List[dict], season_name: str, write_json: bool = True) -> List[dict]:
         season_folder = self.out_dir / season_name
         season_folder.mkdir(parents=True, exist_ok=True)
 
@@ -86,8 +86,9 @@ class Downloader:
                 logging.exception(f"A future failed outright: {e}")
                 results.append({"status": "failed", "file": None, "title": str(item.get("id"))})
 
-        meta_path = season_folder / "metadata.json"
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump({"season": season_name, "items": results}, f, ensure_ascii=False, indent=2)
+        if write_json:
+            meta_path = season_folder / "metadata.json"
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump({"season": season_name, "items": results}, f, ensure_ascii=False, indent=2)
 
         return results
