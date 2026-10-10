@@ -28,28 +28,33 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
+        "-s",
         "--season",
         type=str,
         help="Season name: Winter, Spring, Summer, or Fall (auto-detects if not specified)"
     )
     parser.add_argument(
+        "-y",
         "--year",
         type=int,
         help="Year (e.g., 2025). Defaults to current year"
     )
     parser.add_argument(
+        "-o",
         "--out",
         type=str,
         default="seasonal",
         help="Output base directory"
     )
     parser.add_argument(
+        "-w",
         "--workers",
         type=int,
         default=8,
         help="Number of parallel download workers"
     )
     parser.add_argument(
+        "-d",
         "--delay",
         type=float,
         default=0.15,
@@ -71,9 +76,14 @@ def main():
         help="Exclude anime continuing from previous season (default: includes continuing anime)"
     )
 
-    parser.add_argument("--grace-days", type=int, default=21,
-        help="Days into a season a previous-season show must still air to count as continuing")
-    
+    parser.add_argument(
+        "-g",
+        "--grace-days",
+        type=int,
+        default=21,
+        help="Days into a season a previous-season show must still air to count as continuing"
+    )
+
     args = parser.parse_args()
 
     if args.season:
