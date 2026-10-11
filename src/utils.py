@@ -3,6 +3,8 @@
 import re
 from datetime import datetime
 
+SEASON_START_MONTH = {"WINTER": 1, "SPRING": 4, "SUMMER": 7, "FALL": 10}
+
 
 def sanitize_filename(name: str, max_length: int = 100) -> str:
     """
@@ -38,20 +40,21 @@ def sanitize_filename(name: str, max_length: int = 100) -> str:
 
 def get_current_season() -> str:
     """
-    Determine the current anime season based on the current date
-    
+    Determine the current anime season based on the current date,
+    using the same season boundaries as AniList
+
     Returns:
         Season name: 'Winter', 'Spring', 'Summer', or 'Fall'
     """
     month = datetime.now().month
-    
-    if month in [12, 1, 2]:
+
+    if month <= 3:
         return "Winter"
-    elif month in [3, 4, 5]:
+    elif month <= 6:
         return "Spring"
-    elif month in [6, 7, 8]:
+    elif month <= 9:
         return "Summer"
-    else:  # month in [9, 10, 11]
+    else:
         return "Fall"
 
 

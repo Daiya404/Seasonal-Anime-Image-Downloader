@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from .anilist import get_seasonal_anime
 from .downloader import Downloader
-from .utils import get_current_season
+from .utils import get_current_season, validate_season, normalize_season, format_season_name
 
 
 def setup_logging(logfile: Path):
@@ -28,32 +28,37 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
+        "-s",
         "--season",
         type=str,
         help="Season name: Winter, Spring, Summer, or Fall (auto-detects if not specified)"
     )
     parser.add_argument(
+        "-y",
         "--year",
         type=int,
         help="Year (e.g., 2025). Defaults to current year"
     )
     parser.add_argument(
+        "-o",
         "--out",
         type=str,
         default="seasonal",
         help="Output base directory"
     )
     parser.add_argument(
+        "-w",
         "--workers",
         type=int,
         default=8,
         help="Number of parallel download workers"
     )
     parser.add_argument(
+        "-d",
         "--delay",
         type=float,
-        default=0.12,
-        help="Per-worker delay between downloads (seconds)"
+        default=0.15,
+        help="Minimum delay between image requests, shared by all workers (seconds)"
     )
     parser.add_argument(
         "--no-json",
@@ -70,13 +75,27 @@ def main():
         action="store_true",
         help="Exclude anime continuing from previous season (default: includes continuing anime)"
     )
-    
+
+    parser.add_argument(
+        "-g",
+        "--grace-days",
+        type=int,
+        default=21,
+        help="Days into a season a previous-season show must still air to count as continuing"
+    )
+
     args = parser.parse_args()
 
-    season = args.season or get_current_season()
+    if args.season:
+        if not validate_season(args.season):
+            parser.error(f"Invalid season '{args.season}'. Use winter, spring, summer, fall or autumn.")
+        season = normalize_season(args.season)
+    else:
+        season = normalize_season(get_current_season())
+
     year = args.year or datetime.now().year
 
-    season_folder_name = f"{season} {year}"
+    season_folder_name = format_season_name(season, year)
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -84,10 +103,10 @@ def main():
     setup_logging(logfile)
 
     logging.info("=" * 60)
-    logging.info(f"Seasonal Anime Image Downloader - {season} {year}")
+    logging.info(f"Seasonal Anime Image Downloader - {season_folder_name}")
     logging.info("=" * 60)
     
-    logging.info(f"Fetching {season} {year} from AniList API...")
+    logging.info(f"Fetching {season_folder_name} from AniList API...")
     if not args.include_adult:
         logging.info("Filtering out adult content (use --include-adult to disable)")
     if not args.no_continuing:
@@ -98,7 +117,8 @@ def main():
             season, 
             year, 
             include_adult=args.include_adult,
-            include_continuing=not args.no_continuing
+            include_continuing=not args.no_continuing,
+            grace_days=args.grace_days
         )
         logging.info(f"Successfully fetched {len(anime_list)} anime titles")
     except Exception as e:
@@ -117,20 +137,20 @@ def main():
     )
     
     try:
-        results = dl.download_all(anime_list, season_folder_name)
-        
+        results = dl.download_all(anime_list, season_folder_name, write_json=not args.no_json)
+
         success = sum(1 for r in results if r.get("status") == "ok")
         skipped = sum(1 for r in results if r.get("status") == "skipped")
         failed = sum(1 for r in results if r.get("status") == "failed")
-        
+
         logging.info(f"Download complete: {success} downloaded, {skipped} skipped, {failed} failed")
-        
+
     except Exception as e:
         logging.error(f"Download failed: {e}")
         return 1
 
     if not args.no_json:
-        logging.info("Metadata saved alongside images")
+        logging.info(f"Metadata saved to {out_dir / season_folder_name / 'metadata.json'}")
 
     logging.info("=" * 60)
     logging.info(f"Images saved to: {out_dir / season_folder_name}")
