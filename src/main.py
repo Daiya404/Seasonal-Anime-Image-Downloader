@@ -4,9 +4,16 @@ import argparse
 import logging
 from pathlib import Path
 from datetime import datetime
-from .anilist import get_seasonal_anime
+from .anilist import get_seasonal_anime, filter_by_format
 from .downloader import Downloader
-from .utils import get_current_season, validate_season, normalize_season, format_season_name
+from .utils import (
+    get_current_season,
+    validate_season,
+    normalize_season,
+    format_season_name,
+    parse_choices,
+    VALID_FORMATS,
+)
 
 
 def setup_logging(logfile: Path):
@@ -75,6 +82,20 @@ def main():
         action="store_true",
         help="Exclude anime continuing from previous season (default: includes continuing anime)"
     )
+    format_group = parser.add_mutually_exclusive_group()
+    format_group.add_argument(
+        "-f",
+        "--format",
+        nargs="+",
+        metavar="FORMAT",
+        help="Only download these formats, comma separated (whitelist): TV, TV_SHORT, MOVIE, SPECIAL, OVA, ONA, MUSIC"
+    )
+    format_group.add_argument(
+        "--exclude-format",
+        nargs="+",
+        metavar="FORMAT",
+        help="Skip these formats, comma separated (blacklist). Can't be combined with --format"
+    )
 
     parser.add_argument(
         "-g",
@@ -85,6 +106,12 @@ def main():
     )
 
     args = parser.parse_args()
+
+    try:
+        include_formats = parse_choices(args.format, VALID_FORMATS, "--format") if args.format else None
+        exclude_formats = parse_choices(args.exclude_format, VALID_FORMATS, "--exclude-format") if args.exclude_format else None
+    except ValueError as e:
+        parser.error(str(e))
 
     if args.season:
         if not validate_season(args.season):
@@ -124,6 +151,11 @@ def main():
     except Exception as e:
         logging.error(f"Failed to fetch anime list: {e}")
         return 1
+
+    if include_formats or exclude_formats:
+        before = len(anime_list)
+        anime_list = filter_by_format(anime_list, include_formats, exclude_formats)
+        logging.info(f"Format filter kept {len(anime_list)} of {before} titles")
 
     if not anime_list:
         logging.warning("No anime found for this season. Exiting.")

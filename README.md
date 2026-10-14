@@ -62,17 +62,19 @@ python -m src \
 
 ## Arguments
 
-| Argument          | Short | Description                                                                     | Default        |
-| ----------------- | ----- | ------------------------------------------------------------------------------- | -------------- |
-| `--season`        | `-s`  | Season name (Winter/Spring/Summer/Fall, `autumn` also works)                    | Current season |
-| `--year`          | `-y`  | Year (e.g., 2025)                                                               | Current year   |
-| `--out`           | `-o`  | Output directory                                                                | `seasonal`     |
-| `--workers`       | `-w`  | Number of parallel download workers                                             | 8              |
-| `--delay`         | `-d`  | Minimum delay between image requests, shared by all workers (seconds)           | 0.15           |
-| `--grace-days`    | `-g`  | Days into a season a previous-season show must still air to count as continuing | 21             |
-| `--no-continuing` |       | Exclude anime continuing from the previous season                               | False          |
-| `--no-json`       |       | Skip metadata JSON output                                                       | False          |
-| `--include-adult` |       | Include adult/hentai content                                                    | False          |
+| Argument           | Short | Description                                                                                      | Default        |
+| ------------------ | ----- | ------------------------------------------------------------------------------------------------ | -------------- |
+| `--season`         | `-s`  | Season name (Winter/Spring/Summer/Fall, `autumn` also works)                                     | Current season |
+| `--year`           | `-y`  | Year (e.g., 2025)                                                                                | Current year   |
+| `--out`            | `-o`  | Output directory                                                                                 | `seasonal`     |
+| `--workers`        | `-w`  | Number of parallel download workers                                                              | 8              |
+| `--delay`          | `-d`  | Minimum delay between image requests, shared by all workers (seconds)                            | 0.15           |
+| `--grace-days`     | `-g`  | Days into a season a previous-season show must still air to count as continuing                  | 21             |
+| `--no-continuing`  |       | Exclude anime continuing from the previous season                                                | False          |
+| `--no-json`        |       | Skip metadata JSON output                                                                        | False          |
+| `--include-adult`  |       | Include adult/hentai content                                                                     | False          |
+| `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format` | All formats    |
+| `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                  | None           |
 
 ## Output Structure
 

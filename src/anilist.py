@@ -12,6 +12,19 @@ API_URL = "https://graphql.anilist.co"
 SEASON_ORDER = ["WINTER", "SPRING", "SUMMER", "FALL"]
 
 
+def filter_by_format(
+    anime_list: list[dict],
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
+) -> list[dict]:
+    """Keep only formats in include, or drop formats in exclude."""
+    if include:
+        return [anime for anime in anime_list if anime.get("format") in include]
+    if exclude:
+        return [anime for anime in anime_list if anime.get("format") not in exclude]
+    return anime_list
+
+
 def _is_continuing(anime, season, year, grace_days):
     end = anime.get("endDate") or {}
     if not end.get("year"):
