@@ -5,6 +5,7 @@ from datetime import datetime
 
 SEASON_START_MONTH = {"WINTER": 1, "SPRING": 4, "SUMMER": 7, "FALL": 10}
 VALID_FORMATS = ("TV", "TV_SHORT", "MOVIE", "SPECIAL", "OVA", "ONA", "MUSIC")
+VALID_TITLE_LANGUAGES = ("romaji", "english", "native")
 
 
 def parse_choices(values: list[str], valid: tuple[str, ...], option: str) -> list[str]:
@@ -39,6 +40,19 @@ def parse_choices(values: list[str], valid: tuple[str, ...], option: str) -> lis
     if not items:
         raise ValueError(f"{option} needs at least one value. Valid: {', '.join(valid)}")
     return items
+
+
+def pick_title(
+    anime: dict,
+    languages: tuple[str, ...] | list[str] = ("romaji",),
+) -> str:
+    """Pick the first non-empty title in the requested language order."""
+    titles = anime.get("title") or {}
+    for language in languages:
+        value = (titles.get(language) or "").strip()
+        if value:
+            return value
+    return str(anime.get("id"))
 
 
 def sanitize_filename(name: str, max_length: int = 100) -> str:

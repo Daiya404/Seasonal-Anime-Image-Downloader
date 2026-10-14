@@ -76,6 +76,11 @@ python -m src \
 | `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format` | All formats    |
 | `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                  | None           |
 | `--limit`          | `-l`  | Keep only the N most popular titles, applied after format filters                               | All titles     |
+| `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback  | `romaji`       |
+
+Title languages are tried in the order provided. For example, `-t english,native` uses English
+titles first, then native titles, then romaji. Existing files are renamed when the selected
+language changes; images are not downloaded again.
 
 ## Output Structure
 

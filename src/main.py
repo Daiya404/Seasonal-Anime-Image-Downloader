@@ -13,6 +13,7 @@ from .utils import (
     format_season_name,
     parse_choices,
     VALID_FORMATS,
+    VALID_TITLE_LANGUAGES,
 )
 
 
@@ -109,6 +110,14 @@ def main():
         type=positive_int,
         help="Only keep the N most popular titles (applied after format filters)"
     )
+    parser.add_argument(
+        "-t",
+        "--title-language",
+        nargs="+",
+        metavar="LANG",
+        default=["romaji"],
+        help="Title language for file names: romaji, english, native. Comma separated in priority order; romaji is always the final fallback"
+    )
 
     parser.add_argument(
         "-g",
@@ -125,6 +134,12 @@ def main():
         exclude_formats = parse_choices(args.exclude_format, VALID_FORMATS, "--exclude-format") if args.exclude_format else None
     except ValueError as e:
         parser.error(str(e))
+    try:
+        title_languages = parse_choices(args.title_language, VALID_TITLE_LANGUAGES, "--title-language")
+    except ValueError as e:
+        parser.error(str(e))
+    if "romaji" not in title_languages:
+        title_languages.append("romaji")
 
     if args.season:
         if not validate_season(args.season):
@@ -155,7 +170,7 @@ def main():
     try:
         anime_list = get_seasonal_anime(
             season, 
-            year, 
+            year,
             include_adult=args.include_adult,
             include_continuing=not args.no_continuing,
             grace_days=args.grace_days
@@ -182,7 +197,8 @@ def main():
     dl = Downloader(
         out_dir=out_dir,
         max_workers=args.workers,
-        delay=args.delay
+        delay=args.delay,
+        title_languages=title_languages
     )
     
     try:

@@ -9,17 +9,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import threading
 from tqdm import tqdm
-from typing import List
-from .utils import sanitize_filename
+from typing import List, Sequence
+from .utils import sanitize_filename, pick_title
 
 
 class Downloader:
-    def __init__(self, out_dir: str | Path, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0):
+    def __init__(self, out_dir: str | Path, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0, title_languages: Sequence[str] = ("romaji",)):
         self.out_dir = Path(out_dir)
         self.max_workers = max_workers
         self.delay = delay
         self.retries = retries
         self.backoff = backoff
+        self.title_languages = tuple(title_languages)
         self.session = requests.Session()
         self._rate_lock = threading.Lock()
         self._next_slot = 0.0
@@ -34,7 +35,7 @@ class Downloader:
             time.sleep(wait)
 
     def _download_one(self, item, index, season_folder: Path):
-        title = sanitize_filename(item.get("title", {}).get("romaji") or str(item.get("id")))
+        title = sanitize_filename(pick_title(item, self.title_languages))
         cover = item.get("coverImage") or {}
         url = cover.get("extraLarge") or cover.get("large")
         
