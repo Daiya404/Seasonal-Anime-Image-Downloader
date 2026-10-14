@@ -75,6 +75,7 @@ python -m src \
 | `--include-adult`  |       | Include adult/hentai content                                                                     | False          |
 | `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format` | All formats    |
 | `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                  | None           |
+| `--limit`          | `-l`  | Keep only the N most popular titles, applied after format filters                               | All titles     |
 
 ## Output Structure
 

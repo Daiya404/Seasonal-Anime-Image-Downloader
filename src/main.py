@@ -29,6 +29,13 @@ def setup_logging(logfile: Path):
     )
 
 
+def positive_int(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be 1 or greater")
+    return number
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Seasonal anime cover downloader — glorified image thief",
@@ -96,6 +103,12 @@ def main():
         metavar="FORMAT",
         help="Skip these formats, comma separated (blacklist). Can't be combined with --format"
     )
+    parser.add_argument(
+        "-l",
+        "--limit",
+        type=positive_int,
+        help="Only keep the N most popular titles (applied after format filters)"
+    )
 
     parser.add_argument(
         "-g",
@@ -156,6 +169,10 @@ def main():
         before = len(anime_list)
         anime_list = filter_by_format(anime_list, include_formats, exclude_formats)
         logging.info(f"Format filter kept {len(anime_list)} of {before} titles")
+
+    if args.limit is not None and len(anime_list) > args.limit:
+        anime_list = anime_list[:args.limit]
+        logging.info(f"Limited to the top {args.limit} titles by popularity")
 
     if not anime_list:
         logging.warning("No anime found for this season. Exiting.")
