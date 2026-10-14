@@ -118,6 +118,11 @@ def main():
         default=["romaji"],
         help="Title language for file names: romaji, english, native. Comma separated in priority order; romaji is always the final fallback"
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-download images even if they already exist"
+    )
 
     parser.add_argument(
         "-g",
@@ -198,7 +203,8 @@ def main():
         out_dir=out_dir,
         max_workers=args.workers,
         delay=args.delay,
-        title_languages=title_languages
+        title_languages=title_languages,
+        force=args.force
     )
     
     try:

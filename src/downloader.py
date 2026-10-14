@@ -14,13 +14,14 @@ from .utils import sanitize_filename, pick_title
 
 
 class Downloader:
-    def __init__(self, out_dir: str | Path, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0, title_languages: Sequence[str] = ("romaji",)):
+    def __init__(self, out_dir: str | Path, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0, title_languages: Sequence[str] = ("romaji",), force: bool = False):
         self.out_dir = Path(out_dir)
         self.max_workers = max_workers
         self.delay = delay
         self.retries = retries
         self.backoff = backoff
         self.title_languages = tuple(title_languages)
+        self.force = force
         self.session = requests.Session()
         self._rate_lock = threading.Lock()
         self._next_slot = 0.0
@@ -47,7 +48,7 @@ class Downloader:
         filepath = season_folder / filename
 
         existing = next(season_folder.glob(f"* - {item['id']} - *.jpg"), None)
-        if existing and existing.stat().st_size > 1024:
+        if not self.force and existing and existing.stat().st_size > 1024:
             if existing != filepath:
                 existing.rename(filepath)  # rank changed, fix the number
             logging.info(f"Skipping existing {filename}")
@@ -63,6 +64,8 @@ class Downloader:
                 with open(tmp, "wb") as f:
                     f.write(resp.content)
                 os.replace(tmp, filepath)
+                if existing and existing != filepath:
+                    existing.unlink(missing_ok=True)  # old name or corrupt leftover
                 return {"status": "ok", "file": str(filepath), "title": title}
             except Exception as e:
                 attempt += 1
