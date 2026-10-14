@@ -165,7 +165,7 @@ def _fetch_season_filtered(query: str, season: str, year: int, per_page: int, is
     """
     results = []
     page = 1
-    
+
     while True:
         variables = {
             "season": season.upper(),
@@ -175,38 +175,23 @@ def _fetch_season_filtered(query: str, season: str, year: int, per_page: int, is
             "isAdult": is_adult,
         }
 
-        try:
-            data = _post(query, variables)
+        data = _post(query, variables)
 
-            if "errors" in data:
-                logging.error(f"GraphQL errors: {data['errors']}")
-                logging.error(f"Pagination aborted at page {page}, results are incomplete")
-                break
+        if "errors" in data:
+            raise RuntimeError(f"AniList GraphQL errors on page {page}: {data['errors']}")
 
-            page_data = data.get("data", {}).get("Page", {})
-            page_media = page_data.get("media", [])
+        page_data = (data.get("data") or {}).get("Page") or {}
+        page_media = page_data.get("media", [])
 
-            if not page_media:
-                break
-
-            results.extend(page_media)
-
-            page_info = page_data.get("pageInfo", {})
-            has_next = page_info.get("hasNextPage", False)
-
-            if not has_next:
-                break
-
-            page += 1
-
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error fetching page {page}: {e}")
-            logging.error(f"Pagination aborted at page {page}, results are incomplete")
+        if not page_media:
             break
-        except Exception as e:
-            logging.error(f"Unexpected error on page {page}: {e}")
-            logging.error(f"Pagination aborted at page {page}, results are incomplete")
+
+        results.extend(page_media)
+
+        if not page_data.get("pageInfo", {}).get("hasNextPage", False):
             break
+
+        page += 1
 
     return results
 
