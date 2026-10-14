@@ -26,8 +26,8 @@ Downloads anime cover images from AniList for a given season. Perfect for:
 
 ```bash
 # Clone the repository
-git clone https://github.com/Daiya404/Seasonal-Anime-Downloader.git
-cd Seasonal-Anime-Downloader
+git clone https://github.com/Daiya404/Seasonal-Anime-Image-Downloader.git
+cd Seasonal-Anime-Image-Downloader
 
 # Install dependencies
 pip install -r requirements.txt
@@ -75,8 +75,8 @@ python -m src \
 | `--include-adult`  |       | Include adult/hentai content                                                                     | False          |
 | `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format` | All formats    |
 | `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                  | None           |
-| `--limit`          | `-l`  | Keep only the N most popular titles, applied after format filters                               | All titles     |
-| `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback  | `romaji`       |
+| `--limit`          | `-l`  | Keep only the N most popular titles, applied after format filters                                | All titles     |
+| `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback   | `romaji`       |
 | `--force`          |       | Re-download images even if they already exist                                                    | False          |
 
 Title languages are tried in the order provided. For example, `-t english,native` uses English
