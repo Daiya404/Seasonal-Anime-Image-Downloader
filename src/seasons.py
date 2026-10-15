@@ -10,8 +10,9 @@ from .utils import SEASON_START_MONTH, format_season_name
 # WINTER, SPRING, SUMMER, FALL in calendar order
 SEASONS = tuple(SEASON_START_MONTH)
 
-# Earliest year accepted. Only a typo guard, so an empty season just logs a warning
-MIN_YEAR = 1900
+# Earliest year accepted: AniList maps a seasonYear below 1950 onto 20xx.
+# Those years would otherwise return unrelated modern shows.
+MIN_YEAR = 1950
 
 ALIASES = {"AUTUMN": "FALL"}
 WILDCARD_ANY = "ANY"
