@@ -9,6 +9,7 @@ from datetime import datetime
 from .anilist import get_seasonal_anime, get_yearly_anime, filter_by_format
 from .downloader import Downloader
 from .seasons import SEASONS, YEAR_WEIGHT, Job, parse_jobs
+from .sorting import SortKey, describe_sort, parse_sort, sort_anime
 from .utils import (
     get_current_season,
     normalize_season,
@@ -84,6 +85,14 @@ class JobOutcome:
     failed: int = 0
 
 
+@dataclass
+class Selection:
+    """What to keep from a fetched list, and in which order"""
+    include_formats: list[str] | None
+    exclude_formats: list[str] | None
+    sort_keys: list[SortKey]
+
+
 def log_section(text: str):
     logging.info("=" * 60)
     logging.info(text)
@@ -111,20 +120,22 @@ def select_and_download(
     folder_name: str,
     anime_list: list[dict],
     args: argparse.Namespace,
-    include_formats: list[str] | None,
-    exclude_formats: list[str] | None,
+    selection: Selection,
     dl: Downloader,
     extra_metadata: dict | None = None,
 ) -> tuple[JobOutcome, list[dict]]:
-    """Filter, limit and download a list into one folder."""
-    if include_formats or exclude_formats:
+    """Filter, sort, limit and download a list into one folder."""
+    if selection.include_formats or selection.exclude_formats:
         before = len(anime_list)
-        anime_list = filter_by_format(anime_list, include_formats, exclude_formats)
+        anime_list = filter_by_format(anime_list, selection.include_formats, selection.exclude_formats)
         logging.info(f"Format filter kept {len(anime_list)} of {before} titles")
+
+    anime_list = sort_anime(anime_list, selection.sort_keys, dl.title_languages)
+    logging.info(f"Sorted by {describe_sort(selection.sort_keys)}")
 
     if args.limit is not None and len(anime_list) > args.limit:
         anime_list = anime_list[:args.limit]
-        logging.info(f"Limited to the top {args.limit} titles by popularity")
+        logging.info(f"Limited to the top {args.limit} titles")
 
     if not anime_list:
         logging.warning(f"No anime found for {label}")
@@ -151,8 +162,7 @@ def select_and_download(
 def process_job(
     job: Job,
     args: argparse.Namespace,
-    include_formats: list[str] | None,
-    exclude_formats: list[str] | None,
+    selection: Selection,
     dl: Downloader,
 ) -> JobOutcome:
     """Fetch, filter and download one season (or one whole year) into its own folder."""
@@ -163,8 +173,7 @@ def process_job(
         job.name,
         anime_list,
         args,
-        include_formats,
-        exclude_formats,
+        selection,
         dl,
     )
     return outcome
@@ -174,8 +183,7 @@ def run_merged(
     jobs: list[Job],
     folder_name: str,
     args: argparse.Namespace,
-    include_formats: list[str] | None,
-    exclude_formats: list[str] | None,
+    selection: Selection,
     dl: Downloader,
 ) -> JobOutcome:
     """Fetch every job, merge it, download once, and prune stale owned files."""
@@ -191,17 +199,15 @@ def run_merged(
         for anime in anime_list:
             merged.setdefault(anime["id"], anime)
 
-    merged_list = sorted(merged.values(), key=lambda anime: anime.get("popularity") or 0, reverse=True)
     log_section(f"Merging into {folder_name}")
-    logging.info(f"{len(merged_list)} unique titles from {len(jobs)} seasons/years")
+    logging.info(f"{len(merged)} unique titles from {len(jobs)} seasons/years")
 
     outcome, downloaded = select_and_download(
         folder_name,
         folder_name,
-        merged_list,
+        list(merged.values()),
         args,
-        include_formats,
-        exclude_formats,
+        selection,
         dl,
         extra_metadata={"seasons": [job.label for job in jobs]},
     )
@@ -326,6 +332,13 @@ def main():
         metavar="NAME",
         help=f"Put everything into one folder (default name: {DEFAULT_MERGE_NAME}) instead of one per season. Duplicates are merged, and files in that folder that are not part of this run are removed"
     )
+    parser.add_argument(
+        "-S",
+        "--sort",
+        nargs="+",
+        metavar="KEY",
+        help="Sort order, comma separated keys: popularity, score, title, start, end, id, mal_id. Add :asc or :desc to a key, e.g. score,title:desc. popularity and id are always added as tie-breakers. Decides rank numbers and what --limit keeps (default: popularity)"
+    )
 
     parser.add_argument(
         "-g",
@@ -341,6 +354,7 @@ def main():
         include_formats = parse_choices(args.format, VALID_FORMATS, "--format") if args.format else None
         exclude_formats = parse_choices(args.exclude_format, VALID_FORMATS, "--exclude-format") if args.exclude_format else None
         title_languages = parse_choices(args.title_language, VALID_TITLE_LANGUAGES, "--title-language")
+        sort_keys = parse_sort(args.sort)
         jobs, warnings = parse_jobs(
             args.season,
             args.year,
@@ -351,6 +365,8 @@ def main():
         parser.error(str(e))
     if "romaji" not in title_languages:
         title_languages.append("romaji")
+
+    selection = Selection(include_formats, exclude_formats, sort_keys)
 
     merge_name = sanitize_filename(args.merge.strip() or DEFAULT_MERGE_NAME) if args.merge is not None else None
 
@@ -389,14 +405,14 @@ def main():
     outcomes: list[JobOutcome] = []
     if merge_name is not None:
         try:
-            outcomes.append(run_merged(jobs, merge_name, args, include_formats, exclude_formats, dl))
+            outcomes.append(run_merged(jobs, merge_name, args, selection, dl))
         except Exception as e:
             logging.error(f"Merge failed: {e}")
             outcomes.append(JobOutcome(merge_name, error=str(e)))
     else:
         for job in jobs:
             try:
-                outcomes.append(process_job(job, args, include_formats, exclude_formats, dl))
+                outcomes.append(process_job(job, args, selection, dl))
             except Exception as e:
                 logging.error(f"{job.label} failed: {e}")
                 outcomes.append(JobOutcome(job.label, error=str(e)))

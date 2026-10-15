@@ -75,6 +75,16 @@ python -m src -s winter,spring -y 2025 --merge
 python -m src -s winter,spring -y 2025 --merge "Winter and Spring 2025"
 ```
 
+### Sorting
+
+```bash
+# The 30 best-rated TV shows of a season
+python -m src -s fall -f tv -S score -l 30
+
+# Newest start date first, alphabetical among shows that started on the same day
+python -m src -s fall -S start:desc,title
+```
+
 ### Example: Filtered Seasonal Run
 
 ```bash
@@ -105,6 +115,7 @@ python -m src \
 | `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                                                                                                                                                                                   | None           |
 | `--limit`          | `-l`  | Keep only the N most popular titles per season, applied after format filters                                                                                                                                                                                      | All titles     |
 | `--merge`          | `-m`  | Put everything into one folder (named `Merged`, or the name you give) instead of one per season. Duplicates are merged, and images from earlier runs that aren't part of this run are removed from that folder                                                    | False          |
+| `--sort`           | `-S`  | Sort by `popularity`, `score`, `title`, `start`, `end`, `id`, or `mal_id`; add `:asc` or `:desc`. Controls ranks and `--limit`; popularity and id are added as tie-breakers, and missing values go last                                                           | popularity     |
 | `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback                                                                                                                                                                    | `romaji`       |
 | `--force`          |       | Re-download images even if they already exist                                                                                                                                                                                                                     | False          |
 | `--yes`            | `-Y`  | Skip the confirmation prompt for large runs (more than 5 seasons' worth, a whole year counts as 4)                                                                                                                                                                | False          |

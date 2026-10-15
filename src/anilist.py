@@ -27,6 +27,7 @@ query (__VARIABLE_DEFS__) {
         }
         media(__MEDIA_ARGS__) {
             id
+            idMal
             popularity
             title {
                 romaji
