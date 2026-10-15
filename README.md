@@ -69,16 +69,16 @@ python -m src -s year:2027 -f tv -l 50
 python -m src -s year -y 2025-2027
 ```
 
-### Full Options
+### Example: Filtered Seasonal Run
 
 ```bash
 python -m src \
-  --season Fall \
-  --year 2024 \
+  --season fall \
+  --year 2025 \
   --out ./output \
-  --workers 10 \
-  --delay 0.2 \
-  --grace-days 14 \
+  --format TV,ONA \
+  --limit 50 \
+  --title-language english,native \
   --no-json
 ```
 
@@ -100,10 +100,17 @@ python -m src \
 | `--limit`          | `-l`  | Keep only the N most popular titles per season, applied after format filters                                                                                                                                                                                      | All titles     |
 | `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback                                                                                                                                                                    | `romaji`       |
 | `--force`          |       | Re-download images even if they already exist                                                                                                                                                                                                                     | False          |
+| `--yes`            | `-Y`  | Skip the confirmation prompt for large runs (more than 5 seasons' worth, a whole year counts as 4)                                                                                                                                                                | False          |
+
+### Title Languages
 
 Title languages are tried in the order provided. For example, `-t english,native` uses English
 titles first, then native titles, then romaji. Existing files are renamed when the selected
 language changes; images are not downloaded again.
+
+### Large Runs
+
+Runs covering more than 5 seasons' worth of anime ask for confirmation before downloading. A whole year counts as 4 seasons. Use `--yes` to skip the prompt, including when running without a terminal.
 
 ## Output Structure
 

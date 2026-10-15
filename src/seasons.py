@@ -16,6 +16,8 @@ MIN_YEAR = 1900
 ALIASES = {"AUTUMN": "FALL"}
 WILDCARD_ANY = "ANY"
 WILDCARD_YEAR = "YEAR"
+# A whole year is roughly as much work as four seasons
+YEAR_WEIGHT = 4
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,11 @@ class Job:
     @property
     def sort_key(self) -> tuple[int, int]:
         return (self.year, -1 if self.season is None else SEASONS.index(self.season))
+
+    @property
+    def weight(self) -> int:
+        """How much work this job is, counted in seasons"""
+        return YEAR_WEIGHT if self.season is None else 1
 
 
 def max_year() -> int:

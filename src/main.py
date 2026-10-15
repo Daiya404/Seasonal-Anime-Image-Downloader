@@ -2,12 +2,13 @@
 
 import argparse
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
 from .anilist import get_seasonal_anime, get_yearly_anime, filter_by_format
 from .downloader import Downloader
-from .seasons import SEASONS, Job, parse_jobs
+from .seasons import SEASONS, YEAR_WEIGHT, Job, parse_jobs
 from .utils import (
     get_current_season,
     normalize_season,
@@ -35,6 +36,40 @@ def positive_int(value: str) -> int:
     if number < 1:
         raise argparse.ArgumentTypeError("must be 1 or greater")
     return number
+
+
+CONFIRM_ABOVE = 5
+
+
+def describe_jobs(jobs: list[Job], keep: int = 3) -> str:
+    """Comma separated job names, shortened when there are many."""
+    names = [job.label for job in jobs]
+    if len(names) <= keep * 2 + 2:
+        return ", ".join(names)
+    hidden = len(names) - keep * 2
+    return f"{', '.join(names[:keep])}, ... {hidden} more ..., {', '.join(names[-keep:])}"
+
+
+def confirm_large_run(jobs: list[Job], assume_yes: bool) -> bool:
+    """Ask before a large run, returning whether it may proceed."""
+    weight = sum(job.weight for job in jobs)
+    if assume_yes or weight <= CONFIRM_ABOVE:
+        return True
+
+    summary = (
+        f"This run covers {weight} seasons' worth of anime (a whole year counts as {YEAR_WEIGHT}):\n"
+        f"  {describe_jobs(jobs)}"
+    )
+    if not sys.stdin.isatty():
+        sys.exit(f"{summary}\nThis needs confirmation, but there is no terminal to ask on. Pass --yes (-Y) to run it anyway.")
+
+    print(summary)
+    try:
+        answer = input("Do you want to continue? (y/N) ")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return answer.strip().lower() in ("y", "yes")
 
 
 @dataclass
@@ -195,6 +230,12 @@ def main():
         action="store_true",
         help="Re-download images even if they already exist"
     )
+    parser.add_argument(
+        "-Y",
+        "--yes",
+        action="store_true",
+        help=f"Skip the confirmation prompt for large runs (more than {CONFIRM_ABOVE} seasons' worth, a whole year counts as {YEAR_WEIGHT})"
+    )
 
     parser.add_argument(
         "-g",
@@ -220,6 +261,10 @@ def main():
         parser.error(str(e))
     if "romaji" not in title_languages:
         title_languages.append("romaji")
+
+    if not confirm_large_run(jobs, args.yes):
+        print("Cancelled, nothing was downloaded.")
+        return 1
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
