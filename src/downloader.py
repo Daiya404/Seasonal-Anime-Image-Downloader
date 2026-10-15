@@ -9,17 +9,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import threading
 from tqdm import tqdm
-from typing import List
-from .utils import sanitize_filename
+from typing import List, Sequence
+from .utils import sanitize_filename, pick_title
 
 
 class Downloader:
-    def __init__(self, out_dir: str | Path, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0):
+    def __init__(self, out_dir: str | Path, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0, title_languages: Sequence[str] = ("romaji",), force: bool = False):
         self.out_dir = Path(out_dir)
         self.max_workers = max_workers
         self.delay = delay
         self.retries = retries
         self.backoff = backoff
+        self.title_languages = tuple(title_languages)
+        self.force = force
         self.session = requests.Session()
         self._rate_lock = threading.Lock()
         self._next_slot = 0.0
@@ -34,7 +36,7 @@ class Downloader:
             time.sleep(wait)
 
     def _download_one(self, item, index, season_folder: Path):
-        title = sanitize_filename(item.get("title", {}).get("romaji") or str(item.get("id")))
+        title = sanitize_filename(pick_title(item, self.title_languages))
         cover = item.get("coverImage") or {}
         url = cover.get("extraLarge") or cover.get("large")
         
@@ -46,7 +48,7 @@ class Downloader:
         filepath = season_folder / filename
 
         existing = next(season_folder.glob(f"* - {item['id']} - *.jpg"), None)
-        if existing and existing.stat().st_size > 1024:
+        if not self.force and existing and existing.stat().st_size > 1024:
             if existing != filepath:
                 existing.rename(filepath)  # rank changed, fix the number
             logging.info(f"Skipping existing {filename}")
@@ -62,6 +64,8 @@ class Downloader:
                 with open(tmp, "wb") as f:
                     f.write(resp.content)
                 os.replace(tmp, filepath)
+                if existing and existing != filepath:
+                    existing.unlink(missing_ok=True)  # old name or corrupt leftover
                 return {"status": "ok", "file": str(filepath), "title": title}
             except Exception as e:
                 attempt += 1

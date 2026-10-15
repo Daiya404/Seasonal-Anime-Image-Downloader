@@ -26,8 +26,8 @@ Downloads anime cover images from AniList for a given season. Perfect for:
 
 ```bash
 # Clone the repository
-git clone https://github.com/Daiya404/Seasonal-Anime-Downloader.git
-cd Seasonal-Anime-Downloader
+git clone https://github.com/Daiya404/Seasonal-Anime-Image-Downloader.git
+cd Seasonal-Anime-Image-Downloader
 
 # Install dependencies
 pip install -r requirements.txt
@@ -62,17 +62,26 @@ python -m src \
 
 ## Arguments
 
-| Argument          | Short | Description                                                                     | Default        |
-| ----------------- | ----- | ------------------------------------------------------------------------------- | -------------- |
-| `--season`        | `-s`  | Season name (Winter/Spring/Summer/Fall, `autumn` also works)                    | Current season |
-| `--year`          | `-y`  | Year (e.g., 2025)                                                               | Current year   |
-| `--out`           | `-o`  | Output directory                                                                | `seasonal`     |
-| `--workers`       | `-w`  | Number of parallel download workers                                             | 8              |
-| `--delay`         | `-d`  | Minimum delay between image requests, shared by all workers (seconds)           | 0.15           |
-| `--grace-days`    | `-g`  | Days into a season a previous-season show must still air to count as continuing | 21             |
-| `--no-continuing` |       | Exclude anime continuing from the previous season                               | False          |
-| `--no-json`       |       | Skip metadata JSON output                                                       | False          |
-| `--include-adult` |       | Include adult/hentai content                                                    | False          |
+| Argument           | Short | Description                                                                                      | Default        |
+| ------------------ | ----- | ------------------------------------------------------------------------------------------------ | -------------- |
+| `--season`         | `-s`  | Season name (Winter/Spring/Summer/Fall, `autumn` also works)                                     | Current season |
+| `--year`           | `-y`  | Year (e.g., 2025)                                                                                | Current year   |
+| `--out`            | `-o`  | Output directory                                                                                 | `seasonal`     |
+| `--workers`        | `-w`  | Number of parallel download workers                                                              | 8              |
+| `--delay`          | `-d`  | Minimum delay between image requests, shared by all workers (seconds)                            | 0.15           |
+| `--grace-days`     | `-g`  | Days into a season a previous-season show must still air to count as continuing                  | 21             |
+| `--no-continuing`  |       | Exclude anime continuing from the previous season                                                | False          |
+| `--no-json`        |       | Skip metadata JSON output                                                                        | False          |
+| `--include-adult`  |       | Include adult/hentai content                                                                     | False          |
+| `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format` | All formats    |
+| `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                  | None           |
+| `--limit`          | `-l`  | Keep only the N most popular titles, applied after format filters                                | All titles     |
+| `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback   | `romaji`       |
+| `--force`          |       | Re-download images even if they already exist                                                    | False          |
+
+Title languages are tried in the order provided. For example, `-t english,native` uses English
+titles first, then native titles, then romaji. Existing files are renamed when the selected
+language changes; images are not downloaded again.
 
 ## Output Structure
 

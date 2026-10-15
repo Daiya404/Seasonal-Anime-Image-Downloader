@@ -4,6 +4,55 @@ import re
 from datetime import datetime
 
 SEASON_START_MONTH = {"WINTER": 1, "SPRING": 4, "SUMMER": 7, "FALL": 10}
+VALID_FORMATS = ("TV", "TV_SHORT", "MOVIE", "SPECIAL", "OVA", "ONA", "MUSIC")
+VALID_TITLE_LANGUAGES = ("romaji", "english", "native")
+
+
+def parse_choices(values: list[str], valid: tuple[str, ...], option: str) -> list[str]:
+    """
+    Parse CLI values like ["tv,", "ona"] or ["tv,ona"] into canonical values.
+
+    Args:
+        values: Raw tokens from argparse (each may contain commas)
+        valid: Allowed values; matching is case-insensitive
+        option: Option name, used in error messages
+
+    Returns:
+        Canonical values, deduplicated, in the order given
+
+    Raises:
+        ValueError: If a value is not in valid or nothing was given
+    """
+    canonical = {value.lower(): value for value in valid}
+    items: list[str] = []
+    for value in values:
+        for part in value.split(","):
+            key = part.strip().lower()
+            if not key:
+                continue
+            if key not in canonical:
+                raise ValueError(
+                    f"Invalid value '{part.strip()}' for {option}. "
+                    f"Valid: {', '.join(valid)}"
+                )
+            if canonical[key] not in items:
+                items.append(canonical[key])
+    if not items:
+        raise ValueError(f"{option} needs at least one value. Valid: {', '.join(valid)}")
+    return items
+
+
+def pick_title(
+    anime: dict,
+    languages: tuple[str, ...] | list[str] = ("romaji",),
+) -> str:
+    """Pick the first non-empty title in the requested language order."""
+    titles = anime.get("title") or {}
+    for language in languages:
+        value = (titles.get(language) or "").strip()
+        if value:
+            return value
+    return str(anime.get("id"))
 
 
 def sanitize_filename(name: str, max_length: int = 100) -> str:
