@@ -67,6 +67,12 @@ python -m src -s year:2027 -f tv -l 50
 
 # Several whole years, one folder each
 python -m src -s year -y 2025-2027
+
+# One folder with everything from two seasons
+python -m src -s winter,spring -y 2025 --merge
+
+# The same, in a folder with a name of your choosing
+python -m src -s winter,spring -y 2025 --merge "Winter and Spring 2025"
 ```
 
 ### Example: Filtered Seasonal Run
@@ -98,9 +104,14 @@ python -m src \
 | `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format`                                                                                                                                                                  | All formats    |
 | `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                                                                                                                                                                                   | None           |
 | `--limit`          | `-l`  | Keep only the N most popular titles per season, applied after format filters                                                                                                                                                                                      | All titles     |
+| `--merge`          | `-m`  | Put everything into one folder (named `Merged`, or the name you give) instead of one per season. Duplicates are merged, and images from earlier runs that aren't part of this run are removed from that folder                                                    | False          |
 | `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback                                                                                                                                                                    | `romaji`       |
 | `--force`          |       | Re-download images even if they already exist                                                                                                                                                                                                                     | False          |
 | `--yes`            | `-Y`  | Skip the confirmation prompt for large runs (more than 5 seasons' worth, a whole year counts as 4)                                                                                                                                                                | False          |
+
+### Merge Mode
+
+With `--merge`, only files this tool created (named `rank - id - title.jpg`) are ever removed from the folder. Other files are left alone.
 
 ### Title Languages
 

@@ -2,6 +2,7 @@
 
 import os
 import json
+import re
 import time
 import logging
 from pathlib import Path
@@ -11,6 +12,11 @@ import threading
 from tqdm import tqdm
 from typing import List, Sequence
 from .utils import sanitize_filename, pick_title
+
+
+# Names this tool gives its own files: 'rank - AniList id - title.jpg'
+_IMAGE_NAME_RE = re.compile(r"^\d+ - (\d+) - .*\.jpg$")
+_PART_NAME_RE = re.compile(r"^\d+ - \d+ - .*\.jpg\.part$")
 
 
 class Downloader:
@@ -75,7 +81,13 @@ class Downloader:
         
         return {"status": "failed", "file": str(filepath), "title": title}
 
-    def download_all(self, anime_list: List[dict], season_name: str, write_json: bool = True) -> List[dict]:
+    def download_all(
+        self,
+        anime_list: List[dict],
+        season_name: str,
+        write_json: bool = True,
+        extra_metadata: dict | None = None,
+    ) -> List[dict]:
         season_folder = self.out_dir / season_name
         season_folder.mkdir(parents=True, exist_ok=True)
 
@@ -99,6 +111,28 @@ class Downloader:
         if write_json:
             meta_path = season_folder / "metadata.json"
             with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump({"season": season_name, "items": results}, f, ensure_ascii=False, indent=2)
+                json.dump({"season": season_name, **(extra_metadata or {}), "items": results}, f, ensure_ascii=False, indent=2)
 
         return results
+
+    def prune(self, folder_name: str, keep_ids: set[int]) -> list[str]:
+        """
+        Remove tool-owned images not in keep_ids and leftover partial files.
+
+        Other files and subfolders are left untouched.
+        """
+        folder = self.out_dir / folder_name
+        removed: list[str] = []
+        if not folder.is_dir():
+            return removed
+
+        for path in sorted(folder.iterdir()):
+            if not path.is_file():
+                continue
+            match = _IMAGE_NAME_RE.match(path.name)
+            stale_image = match is not None and int(match.group(1)) not in keep_ids
+            if stale_image or _PART_NAME_RE.match(path.name):
+                path.unlink()
+                removed.append(path.name)
+                logging.info(f"Removed {path.name}")
+        return removed

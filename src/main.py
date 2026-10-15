@@ -13,6 +13,7 @@ from .utils import (
     get_current_season,
     normalize_season,
     parse_choices,
+    sanitize_filename,
     VALID_FORMATS,
     VALID_TITLE_LANGUAGES,
 )
@@ -39,6 +40,7 @@ def positive_int(value: str) -> int:
 
 
 CONFIRM_ABOVE = 5
+DEFAULT_MERGE_NAME = "Merged"
 
 
 def describe_jobs(jobs: list[Job], keep: int = 3) -> str:
@@ -82,18 +84,14 @@ class JobOutcome:
     failed: int = 0
 
 
-def process_job(
-    job: Job,
-    args: argparse.Namespace,
-    include_formats: list[str] | None,
-    exclude_formats: list[str] | None,
-    dl: Downloader,
-) -> JobOutcome:
-    """Fetch, filter and download one season (or one whole year)"""
+def log_section(text: str):
     logging.info("=" * 60)
-    logging.info(f"Processing {job.label}")
+    logging.info(text)
     logging.info("=" * 60)
 
+
+def fetch_job(job: Job, args: argparse.Namespace) -> list[dict]:
+    """Fetch one season or whole year from AniList"""
     if job.season is None:
         anime_list = get_yearly_anime(job.year, include_adult=args.include_adult)
     else:
@@ -105,7 +103,20 @@ def process_job(
             grace_days=args.grace_days
         )
     logging.info(f"Successfully fetched {len(anime_list)} anime titles")
+    return anime_list
 
+
+def select_and_download(
+    label: str,
+    folder_name: str,
+    anime_list: list[dict],
+    args: argparse.Namespace,
+    include_formats: list[str] | None,
+    exclude_formats: list[str] | None,
+    dl: Downloader,
+    extra_metadata: dict | None = None,
+) -> tuple[JobOutcome, list[dict]]:
+    """Filter, limit and download a list into one folder."""
     if include_formats or exclude_formats:
         before = len(anime_list)
         anime_list = filter_by_format(anime_list, include_formats, exclude_formats)
@@ -116,19 +127,90 @@ def process_job(
         logging.info(f"Limited to the top {args.limit} titles by popularity")
 
     if not anime_list:
-        logging.warning(f"No anime found for {job.label}")
-        return JobOutcome(job.label)
+        logging.warning(f"No anime found for {label}")
+        return JobOutcome(label), []
 
-    results = dl.download_all(anime_list, job.name, write_json=not args.no_json)
+    results = dl.download_all(
+        anime_list,
+        folder_name,
+        write_json=not args.no_json,
+        extra_metadata=extra_metadata,
+    )
     outcome = JobOutcome(
-        job.label,
+        label,
         downloaded=sum(1 for result in results if result.get("status") == "ok"),
         skipped=sum(1 for result in results if result.get("status") == "skipped"),
         failed=sum(1 for result in results if result.get("status") == "failed"),
     )
     logging.info(f"Download complete: {outcome.downloaded} downloaded, {outcome.skipped} skipped, {outcome.failed} failed")
     if not args.no_json:
-        logging.info(f"Metadata saved to {dl.out_dir / job.name / 'metadata.json'}")
+        logging.info(f"Metadata saved to {dl.out_dir / folder_name / 'metadata.json'}")
+    return outcome, anime_list
+
+
+def process_job(
+    job: Job,
+    args: argparse.Namespace,
+    include_formats: list[str] | None,
+    exclude_formats: list[str] | None,
+    dl: Downloader,
+) -> JobOutcome:
+    """Fetch, filter and download one season (or one whole year) into its own folder."""
+    log_section(f"Processing {job.label}")
+    anime_list = fetch_job(job, args)
+    outcome, _ = select_and_download(
+        job.label,
+        job.name,
+        anime_list,
+        args,
+        include_formats,
+        exclude_formats,
+        dl,
+    )
+    return outcome
+
+
+def run_merged(
+    jobs: list[Job],
+    folder_name: str,
+    args: argparse.Namespace,
+    include_formats: list[str] | None,
+    exclude_formats: list[str] | None,
+    dl: Downloader,
+) -> JobOutcome:
+    """Fetch every job, merge it, download once, and prune stale owned files."""
+    merged: dict[int, dict] = {}
+    for job in jobs:
+        log_section(f"Fetching {job.label}")
+        try:
+            anime_list = fetch_job(job, args)
+        except Exception as e:
+            raise RuntimeError(
+                f"fetching {job.label} failed ({e}), so nothing was merged and the folder was left untouched"
+            ) from e
+        for anime in anime_list:
+            merged.setdefault(anime["id"], anime)
+
+    merged_list = sorted(merged.values(), key=lambda anime: anime.get("popularity") or 0, reverse=True)
+    log_section(f"Merging into {folder_name}")
+    logging.info(f"{len(merged_list)} unique titles from {len(jobs)} seasons/years")
+
+    outcome, downloaded = select_and_download(
+        folder_name,
+        folder_name,
+        merged_list,
+        args,
+        include_formats,
+        exclude_formats,
+        dl,
+        extra_metadata={"seasons": [job.label for job in jobs]},
+    )
+
+    if downloaded:
+        removed = dl.prune(folder_name, {anime["id"] for anime in downloaded})
+        logging.info(f"Removed {len(removed)} files that are not part of this run")
+    else:
+        logging.warning(f"Nothing to download, so nothing was removed from {folder_name}")
     return outcome
 
 
@@ -215,7 +297,7 @@ def main():
         "-l",
         "--limit",
         type=positive_int,
-        help="Only keep the N most popular titles per season (applied after format filters)"
+        help="Only keep the N most popular titles per season, or in total with --merge (applied after format filters)"
     )
     parser.add_argument(
         "-t",
@@ -235,6 +317,14 @@ def main():
         "--yes",
         action="store_true",
         help=f"Skip the confirmation prompt for large runs (more than {CONFIRM_ABOVE} seasons' worth, a whole year counts as {YEAR_WEIGHT})"
+    )
+    parser.add_argument(
+        "-m",
+        "--merge",
+        nargs="?",
+        const=DEFAULT_MERGE_NAME,
+        metavar="NAME",
+        help=f"Put everything into one folder (default name: {DEFAULT_MERGE_NAME}) instead of one per season. Duplicates are merged, and files in that folder that are not part of this run are removed"
     )
 
     parser.add_argument(
@@ -262,6 +352,8 @@ def main():
     if "romaji" not in title_languages:
         title_languages.append("romaji")
 
+    merge_name = sanitize_filename(args.merge.strip() or DEFAULT_MERGE_NAME) if args.merge is not None else None
+
     if not confirm_large_run(jobs, args.yes):
         print("Cancelled, nothing was downloaded.")
         return 1
@@ -282,6 +374,8 @@ def main():
         logging.info("Filtering out adult content (use --include-adult to disable)")
     if not args.no_continuing and any(job.season is not None for job in jobs):
         logging.info("Including anime continuing from previous season (use --no-continuing to disable)")
+    if merge_name is not None:
+        logging.info(f"Merging everything into one folder: {merge_name}")
 
     logging.info(f"Using {args.workers} download workers")
     dl = Downloader(
@@ -293,12 +387,19 @@ def main():
     )
 
     outcomes: list[JobOutcome] = []
-    for job in jobs:
+    if merge_name is not None:
         try:
-            outcomes.append(process_job(job, args, include_formats, exclude_formats, dl))
+            outcomes.append(run_merged(jobs, merge_name, args, include_formats, exclude_formats, dl))
         except Exception as e:
-            logging.error(f"{job.label} failed: {e}")
-            outcomes.append(JobOutcome(job.label, error=str(e)))
+            logging.error(f"Merge failed: {e}")
+            outcomes.append(JobOutcome(merge_name, error=str(e)))
+    else:
+        for job in jobs:
+            try:
+                outcomes.append(process_job(job, args, include_formats, exclude_formats, dl))
+            except Exception as e:
+                logging.error(f"{job.label} failed: {e}")
+                outcomes.append(JobOutcome(job.label, error=str(e)))
 
     logging.info("=" * 60)
     logging.info("Summary")
