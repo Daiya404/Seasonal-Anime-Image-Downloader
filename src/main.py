@@ -2,15 +2,15 @@
 
 import argparse
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
 from .anilist import get_seasonal_anime, filter_by_format
 from .downloader import Downloader
+from .seasons import Job, parse_jobs
 from .utils import (
     get_current_season,
-    validate_season,
     normalize_season,
-    format_season_name,
     parse_choices,
     VALID_FORMATS,
     VALID_TITLE_LANGUAGES,
@@ -37,6 +37,63 @@ def positive_int(value: str) -> int:
     return number
 
 
+@dataclass
+class JobOutcome:
+    """Result of one season: either an error, or download counts"""
+    name: str
+    error: str | None = None
+    downloaded: int = 0
+    skipped: int = 0
+    failed: int = 0
+
+
+def process_job(
+    job: Job,
+    args: argparse.Namespace,
+    include_formats: list[str] | None,
+    exclude_formats: list[str] | None,
+    dl: Downloader,
+) -> JobOutcome:
+    """Fetch, filter and download one season"""
+    logging.info("=" * 60)
+    logging.info(f"Processing {job.name}")
+    logging.info("=" * 60)
+
+    anime_list = get_seasonal_anime(
+        job.season,
+        job.year,
+        include_adult=args.include_adult,
+        include_continuing=not args.no_continuing,
+        grace_days=args.grace_days
+    )
+    logging.info(f"Successfully fetched {len(anime_list)} anime titles")
+
+    if include_formats or exclude_formats:
+        before = len(anime_list)
+        anime_list = filter_by_format(anime_list, include_formats, exclude_formats)
+        logging.info(f"Format filter kept {len(anime_list)} of {before} titles")
+
+    if args.limit is not None and len(anime_list) > args.limit:
+        anime_list = anime_list[:args.limit]
+        logging.info(f"Limited to the top {args.limit} titles by popularity")
+
+    if not anime_list:
+        logging.warning(f"No anime found for {job.name}")
+        return JobOutcome(job.name)
+
+    results = dl.download_all(anime_list, job.name, write_json=not args.no_json)
+    outcome = JobOutcome(
+        job.name,
+        downloaded=sum(1 for result in results if result.get("status") == "ok"),
+        skipped=sum(1 for result in results if result.get("status") == "skipped"),
+        failed=sum(1 for result in results if result.get("status") == "failed"),
+    )
+    logging.info(f"Download complete: {outcome.downloaded} downloaded, {outcome.skipped} skipped, {outcome.failed} failed")
+    if not args.no_json:
+        logging.info(f"Metadata saved to {dl.out_dir / job.name / 'metadata.json'}")
+    return outcome
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Seasonal anime cover downloader — glorified image thief",
@@ -45,14 +102,16 @@ def main():
     parser.add_argument(
         "-s",
         "--season",
-        type=str,
-        help="Season name: Winter, Spring, Summer, or Fall (auto-detects if not specified)"
+        nargs="+",
+        metavar="SEASON",
+        help="Season(s), comma separated: winter, spring, summer, fall (autumn works) or any (all four). Add :YEAR to give one its own year, e.g. winter:2025. Auto-detects the current season if not specified"
     )
     parser.add_argument(
         "-y",
         "--year",
-        type=int,
-        help="Year (e.g., 2025). Defaults to current year"
+        nargs="+",
+        metavar="YEAR",
+        help="Year(s), comma separated. Applies to seasons without their own year. Defaults to current year"
     )
     parser.add_argument(
         "-o",
@@ -108,7 +167,7 @@ def main():
         "-l",
         "--limit",
         type=positive_int,
-        help="Only keep the N most popular titles (applied after format filters)"
+        help="Only keep the N most popular titles per season (applied after format filters)"
     )
     parser.add_argument(
         "-t",
@@ -137,68 +196,34 @@ def main():
     try:
         include_formats = parse_choices(args.format, VALID_FORMATS, "--format") if args.format else None
         exclude_formats = parse_choices(args.exclude_format, VALID_FORMATS, "--exclude-format") if args.exclude_format else None
-    except ValueError as e:
-        parser.error(str(e))
-    try:
         title_languages = parse_choices(args.title_language, VALID_TITLE_LANGUAGES, "--title-language")
+        jobs, warnings = parse_jobs(
+            args.season,
+            args.year,
+            default_season=normalize_season(get_current_season()),
+            default_year=datetime.now().year,
+        )
     except ValueError as e:
         parser.error(str(e))
     if "romaji" not in title_languages:
         title_languages.append("romaji")
 
-    if args.season:
-        if not validate_season(args.season):
-            parser.error(f"Invalid season '{args.season}'. Use winter, spring, summer, fall or autumn.")
-        season = normalize_season(args.season)
-    else:
-        season = normalize_season(get_current_season())
-
-    year = args.year or datetime.now().year
-
-    season_folder_name = format_season_name(season, year)
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    logfile = out_dir / "seasonal_downloader.log"
-    setup_logging(logfile)
+    setup_logging(out_dir / "seasonal_downloader.log")
 
     logging.info("=" * 60)
-    logging.info(f"Seasonal Anime Image Downloader - {season_folder_name}")
+    logging.info("Seasonal Anime Image Downloader")
     logging.info("=" * 60)
-    
-    logging.info(f"Fetching {season_folder_name} from AniList API...")
+    for warning in warnings:
+        logging.warning(warning)
+    logging.info(f"Seasons to process ({len(jobs)}): {', '.join(job.name for job in jobs)}")
     if not args.include_adult:
         logging.info("Filtering out adult content (use --include-adult to disable)")
     if not args.no_continuing:
         logging.info("Including anime continuing from previous season (use --no-continuing to disable)")
-    
-    try:
-        anime_list = get_seasonal_anime(
-            season, 
-            year,
-            include_adult=args.include_adult,
-            include_continuing=not args.no_continuing,
-            grace_days=args.grace_days
-        )
-        logging.info(f"Successfully fetched {len(anime_list)} anime titles")
-    except Exception as e:
-        logging.error(f"Failed to fetch anime list: {e}")
-        return 1
 
-    if include_formats or exclude_formats:
-        before = len(anime_list)
-        anime_list = filter_by_format(anime_list, include_formats, exclude_formats)
-        logging.info(f"Format filter kept {len(anime_list)} of {before} titles")
-
-    if args.limit is not None and len(anime_list) > args.limit:
-        anime_list = anime_list[:args.limit]
-        logging.info(f"Limited to the top {args.limit} titles by popularity")
-
-    if not anime_list:
-        logging.warning("No anime found for this season. Exiting.")
-        return 0
-
-    logging.info(f"Starting download with {args.workers} workers...")
+    logging.info(f"Using {args.workers} download workers")
     dl = Downloader(
         out_dir=out_dir,
         max_workers=args.workers,
@@ -206,29 +231,27 @@ def main():
         title_languages=title_languages,
         force=args.force
     )
-    
-    try:
-        results = dl.download_all(anime_list, season_folder_name, write_json=not args.no_json)
 
-        success = sum(1 for r in results if r.get("status") == "ok")
-        skipped = sum(1 for r in results if r.get("status") == "skipped")
-        failed = sum(1 for r in results if r.get("status") == "failed")
-
-        logging.info(f"Download complete: {success} downloaded, {skipped} skipped, {failed} failed")
-
-    except Exception as e:
-        logging.error(f"Download failed: {e}")
-        return 1
-
-    if not args.no_json:
-        logging.info(f"Metadata saved to {out_dir / season_folder_name / 'metadata.json'}")
+    outcomes: list[JobOutcome] = []
+    for job in jobs:
+        try:
+            outcomes.append(process_job(job, args, include_formats, exclude_formats, dl))
+        except Exception as e:
+            logging.error(f"{job.name} failed: {e}")
+            outcomes.append(JobOutcome(job.name, error=str(e)))
 
     logging.info("=" * 60)
-    logging.info(f"Images saved to: {out_dir / season_folder_name}")
+    logging.info("Summary")
+    for outcome in outcomes:
+        if outcome.error:
+            logging.error(f"  {outcome.name}: FAILED ({outcome.error})")
+        else:
+            logging.info(f"  {outcome.name}: {outcome.downloaded} downloaded, {outcome.skipped} skipped, {outcome.failed} failed")
+    logging.info(f"Images saved to: {out_dir}")
     logging.info("Upload them to TierMaker.com to create your tierlist!")
     logging.info("=" * 60)
-    
-    return 0
+
+    return 1 if any(outcome.error or outcome.failed for outcome in outcomes) else 0
 
 
 if __name__ == '__main__':

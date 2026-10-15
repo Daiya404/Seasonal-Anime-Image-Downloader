@@ -11,6 +11,9 @@ API_URL = "https://graphql.anilist.co"
 # Season order
 SEASON_ORDER = ["WINTER", "SPRING", "SUMMER", "FALL"]
 
+# Fetched seasons, so consecutive seasons don't download the same data twice
+_season_cache: dict[tuple[str, int, bool], list[dict]] = {}
+
 
 def filter_by_format(
     anime_list: list[dict],
@@ -227,6 +230,11 @@ def _fetch_season(query: str, season: str, year: int, per_page: int, include_adu
     Returns:
         List of anime dictionaries, sorted by popularity (highest first)
     """
+    key = (season.upper(), year, include_adult)
+    if key in _season_cache:
+        logging.info(f"Using already fetched {format_season_name(season, year)}")
+        return list(_season_cache[key])
+
     flags = [False, True] if include_adult else [False]
     results, seen = [], set()
     for flag in flags:
@@ -235,4 +243,5 @@ def _fetch_season(query: str, season: str, year: int, per_page: int, include_adu
                 seen.add(anime["id"])
                 results.append(anime)
     results.sort(key=lambda a: a.get("popularity") or 0, reverse=True)
-    return results
+    _season_cache[key] = results
+    return list(results)

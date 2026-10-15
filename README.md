@@ -47,6 +47,19 @@ python -m src
 python -m src -s Winter -y 2025
 ```
 
+### Multiple Seasons and Years
+
+```bash
+# Several seasons and years (every combination, one folder each)
+python -m src -s winter,spring -y 2025,2026
+
+# Mix explicit years with a year list
+python -m src -s winter:2024,spring -y 2025
+
+# All four seasons of a year
+python -m src -s any -y 2025
+```
+
 ### Full Options
 
 ```bash
@@ -64,8 +77,8 @@ python -m src \
 
 | Argument           | Short | Description                                                                                      | Default        |
 | ------------------ | ----- | ------------------------------------------------------------------------------------------------ | -------------- |
-| `--season`         | `-s`  | Season name (Winter/Spring/Summer/Fall, `autumn` also works)                                     | Current season |
-| `--year`           | `-y`  | Year (e.g., 2025)                                                                                | Current year   |
+| `--season`         | `-s`  | Season(s), comma separated: Winter/Spring/Summer/Fall (`autumn` also works), or `any` for all four. Add `:year` for an explicit year, e.g. `winter:2025` | Current season |
+| `--year`           | `-y`  | Year(s), comma separated. Applies to seasons without their own year                             | Current year   |
 | `--out`            | `-o`  | Output directory                                                                                 | `seasonal`     |
 | `--workers`        | `-w`  | Number of parallel download workers                                                              | 8              |
 | `--delay`          | `-d`  | Minimum delay between image requests, shared by all workers (seconds)                            | 0.15           |
@@ -75,7 +88,7 @@ python -m src \
 | `--include-adult`  |       | Include adult/hentai content                                                                     | False          |
 | `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format` | All formats    |
 | `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                  | None           |
-| `--limit`          | `-l`  | Keep only the N most popular titles, applied after format filters                                | All titles     |
+| `--limit`          | `-l`  | Keep only the N most popular titles per season, applied after format filters                   | All titles     |
 | `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback   | `romaji`       |
 | `--force`          |       | Re-download images even if they already exist                                                    | False          |
 
