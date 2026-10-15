@@ -63,14 +63,36 @@ def parse_year(text: str) -> int:
     return year
 
 
-def _parse_season_item(item: str, previous: str | None) -> tuple[str, int | None]:
+_RANGE_RE = re.compile(r"^(\d+)-(\d+)$")
+
+
+def parse_years(text: str) -> list[int]:
     """
-    Parse one season item: NAME or NAME:YEAR
+    Parse a single year or an inclusive range: '2025' or '2023-2026'
+
+    Raises:
+        ValueError: If the text is not a valid year or range, or the range is reversed
+    """
+    match = _RANGE_RE.match(text)
+    if match:
+        start = parse_year(match.group(1))
+        end = parse_year(match.group(2))
+        if start > end:
+            raise ValueError(f"Invalid year range '{text}': {start} is after {end}")
+        return list(range(start, end + 1))
+    if "-" in text:
+        raise ValueError(f"Invalid year range '{text}'. Use START-END without spaces, like 2023-2026")
+    return [parse_year(text)]
+
+
+def _parse_season_item(item: str, previous: str | None) -> tuple[str, list[int] | None]:
+    """
+    Parse one season item: NAME, NAME:YEAR or NAME:START-END
 
     Returns:
-        (season name in uppercase or 'ANY', explicit year or None)
+        (season name in uppercase or 'ANY', explicit years or None)
     """
-    if item.isdigit():
+    if item.isdigit() or _RANGE_RE.match(item):
         hint = f"Did you mean '{previous}:{item}'? " if previous else ""
         raise ValueError(
             f"'{item}' is not a season. {hint}Years go after --year or after a colon, like winter:{item}"
@@ -88,7 +110,7 @@ def _parse_season_item(item: str, previous: str | None) -> tuple[str, int | None
         hint = f" Did you mean '{close[0]}'?" if close else ""
         raise ValueError(f"Unknown season '{name}'.{hint} Valid: winter, spring, summer, fall (autumn), any")
 
-    return key, (parse_year(year_text) if sep else None)
+    return key, (parse_years(year_text) if sep else None)
 
 
 def parse_jobs(
@@ -100,10 +122,10 @@ def parse_jobs(
     """
     Turn --season and --year values into a list of jobs
 
-    An item with its own year (winter:2025) uses only that year. A bare season
-    is combined with every year from --year, or default_year if there is none.
-    'any' stands for all four seasons. Duplicates are removed and the result is
-    sorted oldest first.
+    An item with its own year or range (winter:2025, winter:2023-2025) uses only
+    those years. A bare season is combined with every year from --year (single
+    years and ranges), or default_year if there is none. 'any' stands for all
+    four seasons. Duplicates are removed and the result is sorted oldest first.
 
     Args:
         season_args: Raw --season tokens, or None
@@ -122,9 +144,9 @@ def parse_jobs(
     year_items = _split(year_args)
     years: list[int] = []
     for text in year_items:
-        year = parse_year(text)
-        if year not in years:
-            years.append(year)
+        for year in parse_years(text):
+            if year not in years:
+                years.append(year)
     if not years:
         years = [default_year]
 
@@ -134,15 +156,15 @@ def parse_jobs(
     used_year_list = False
     previous: str | None = None
     for item in season_items:
-        key, explicit_year = _parse_season_item(item, previous)
+        key, explicit_years = _parse_season_item(item, previous)
         previous = item.partition(":")[0]
 
         seasons = SEASONS if key == WILDCARD_ANY else (key,)
-        if explicit_year is None:
+        if explicit_years is None:
             used_year_list = True
             target_years = years
         else:
-            target_years = [explicit_year]
+            target_years = explicit_years
 
         for season in seasons:
             for year in target_years:

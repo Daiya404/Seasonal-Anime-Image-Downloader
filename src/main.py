@@ -104,14 +104,14 @@ def main():
         "--season",
         nargs="+",
         metavar="SEASON",
-        help="Season(s), comma separated: winter, spring, summer, fall (autumn works) or any (all four). Add :YEAR to give one its own year, e.g. winter:2025. Auto-detects the current season if not specified"
+        help="Season(s), comma separated: winter, spring, summer, fall (autumn works) or any (all four). Add :YEAR (or :START-END) to give one its own years, e.g. winter:2025 or winter:2023-2025. Auto-detects the current season if not specified"
     )
     parser.add_argument(
         "-y",
         "--year",
         nargs="+",
         metavar="YEAR",
-        help="Year(s), comma separated. Applies to seasons without their own year. Defaults to current year"
+        help="Year(s) or ranges, comma separated, e.g. 2025, 2023-2026. Applies to seasons without their own year. Defaults to current year"
     )
     parser.add_argument(
         "-o",

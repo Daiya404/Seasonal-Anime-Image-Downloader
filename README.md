@@ -58,6 +58,9 @@ python -m src -s winter:2024,spring -y 2025
 
 # All four seasons of a year
 python -m src -s any -y 2025
+
+# A range of years
+python -m src -s winter -y 2023-2025
 ```
 
 ### Full Options
@@ -77,8 +80,8 @@ python -m src \
 
 | Argument           | Short | Description                                                                                      | Default        |
 | ------------------ | ----- | ------------------------------------------------------------------------------------------------ | -------------- |
-| `--season`         | `-s`  | Season(s), comma separated: Winter/Spring/Summer/Fall (`autumn` also works), or `any` for all four. Add `:year` for an explicit year, e.g. `winter:2025` | Current season |
-| `--year`           | `-y`  | Year(s), comma separated. Applies to seasons without their own year                             | Current year   |
+| `--season`         | `-s`  | Season(s), comma separated: Winter/Spring/Summer/Fall (`autumn` also works), or `any` for all four. Add `:year` or `:start-end` to give one its own years, e.g. `winter:2025` or `winter:2023-2025` | Current season |
+| `--year`           | `-y`  | Year(s) or ranges, comma separated, e.g. `2025, 2023-2026`. Applies to seasons without their own year | Current year   |
 | `--out`            | `-o`  | Output directory                                                                                 | `seasonal`     |
 | `--workers`        | `-w`  | Number of parallel download workers                                                              | 8              |
 | `--delay`          | `-d`  | Minimum delay between image requests, shared by all workers (seconds)                            | 0.15           |
