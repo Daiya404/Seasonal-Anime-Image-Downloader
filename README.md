@@ -98,6 +98,16 @@ python -m src \
   --no-json
 ```
 
+### Genre Filters
+
+```bash
+# Comedies without romance, plus any action show
+python -m src -s fall -G "(comedy&!romance)|action"
+
+# Everything except ecchi and horror
+python -m src -s fall --exclude-genre "ecchi|horror"
+```
+
 ## Arguments
 
 | Argument           | Short | Description                                                                                                                                                                                                                                                       | Default        |
@@ -113,12 +123,18 @@ python -m src \
 | `--include-adult`  |       | Include adult/hentai content                                                                                                                                                                                                                                      | False          |
 | `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format`                                                                                                                                                                  | All formats    |
 | `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                                                                                                                                                                                   | None           |
+| `--genre`          | `-G`  | Only keep shows whose genres match an expression: `&` both, `\|` either, `!` or `~` not, parentheses to group, e.g. `"(comedy&!romance)\|action"`. Names are case-insensitive and short forms work (`sol`, `scifi`, `magical girl`)                               | All            |
+| `--exclude-genre`  |       | Drop shows whose genres match an expression (same syntax). Can be combined with `--genre`                                                                                                                                                                         | None           |
 | `--limit`          | `-l`  | Keep only the N most popular titles per season, applied after format filters                                                                                                                                                                                      | All titles     |
 | `--merge`          | `-m`  | Put everything into one folder (named `Merged`, or the name you give) instead of one per season. Duplicates are merged, and images from earlier runs that aren't part of this run are removed from that folder                                                    | False          |
 | `--sort`           | `-S`  | Sort by `popularity`, `score`, `title`, `start`, `end`, `id`, or `mal_id`; add `:asc` or `:desc`. Controls ranks and `--limit`; popularity and id are added as tie-breakers, and missing values go last                                                           | popularity     |
 | `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback                                                                                                                                                                    | `romaji`       |
 | `--force`          |       | Re-download images even if they already exist                                                                                                                                                                                                                     | False          |
 | `--yes`            | `-Y`  | Skip the confirmation prompt for large runs (more than 5 seasons' worth, a whole year counts as 4)                                                                                                                                                                | False          |
+
+### Genre Expression Notes
+
+Genre expressions that use `&`, `|` or `!` must be quoted: double quotes in PowerShell and cmd, single quotes in bash (so `!` isn't expanded). A single genre doesn't need quotes. Genres are AniList's: Action, Adventure, Comedy, Drama, Ecchi, Fantasy, Hentai, Horror, Mahou Shoujo, Mecha, Music, Mystery, Psychological, Romance, Sci-Fi, Slice of Life, Sports, Supernatural, Thriller.
 
 ### Merge Mode
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from datetime import datetime
 from .anilist import get_seasonal_anime, get_yearly_anime, filter_by_format
 from .downloader import Downloader
+from .genres import GenreMatcher, parse_genre_expression
 from .seasons import SEASONS, YEAR_WEIGHT, Job, parse_jobs
 from .sorting import SortKey, describe_sort, parse_sort, sort_anime
 from .utils import (
@@ -91,6 +92,8 @@ class Selection:
     include_formats: list[str] | None
     exclude_formats: list[str] | None
     sort_keys: list[SortKey]
+    genre: GenreMatcher | None = None
+    exclude_genre: GenreMatcher | None = None
 
 
 def log_section(text: str):
@@ -129,6 +132,23 @@ def select_and_download(
         before = len(anime_list)
         anime_list = filter_by_format(anime_list, selection.include_formats, selection.exclude_formats)
         logging.info(f"Format filter kept {len(anime_list)} of {before} titles")
+
+    genre = selection.genre
+    if genre is not None:
+        before = len(anime_list)
+        anime_list = [anime for anime in anime_list if genre(anime.get("genres"))]
+        logging.info(f"Genre filter kept {len(anime_list)} of {before} titles")
+
+    exclude_genre = selection.exclude_genre
+    if exclude_genre is not None:
+        before = len(anime_list)
+        anime_list = [anime for anime in anime_list if not exclude_genre(anime.get("genres"))]
+        logging.info(f"Exclude-genre filter kept {len(anime_list)} of {before} titles")
+        if before and not anime_list:
+            if genre is not None:
+                logging.warning("--exclude-genre removed every title that --genre kept, check that the two expressions don't contradict each other")
+            else:
+                logging.warning("--exclude-genre removed every title")
 
     anime_list = sort_anime(anime_list, selection.sort_keys, dl.title_languages)
     logging.info(f"Sorted by {describe_sort(selection.sort_keys)}")
@@ -300,6 +320,19 @@ def main():
         help="Skip these formats, comma separated (blacklist). Can't be combined with --format"
     )
     parser.add_argument(
+        "-G",
+        "--genre",
+        nargs="+",
+        metavar="EXPR",
+        help='Only keep shows whose genres match an expression: & both, | either, ! or ~ not, parentheses to group, e.g. "(comedy&!romance)|action". Quote it if it uses operators. Names are case-insensitive, and short forms like sol, scifi and "magical girl" work'
+    )
+    parser.add_argument(
+        "--exclude-genre",
+        nargs="+",
+        metavar="EXPR",
+        help="Drop shows whose genres match an expression (same syntax as --genre). Can be combined with --genre"
+    )
+    parser.add_argument(
         "-l",
         "--limit",
         type=positive_int,
@@ -355,6 +388,8 @@ def main():
         exclude_formats = parse_choices(args.exclude_format, VALID_FORMATS, "--exclude-format") if args.exclude_format else None
         title_languages = parse_choices(args.title_language, VALID_TITLE_LANGUAGES, "--title-language")
         sort_keys = parse_sort(args.sort)
+        genre = parse_genre_expression(" ".join(args.genre), "--genre") if args.genre else None
+        exclude_genre = parse_genre_expression(" ".join(args.exclude_genre), "--exclude-genre") if args.exclude_genre else None
         jobs, warnings = parse_jobs(
             args.season,
             args.year,
@@ -366,7 +401,7 @@ def main():
     if "romaji" not in title_languages:
         title_languages.append("romaji")
 
-    selection = Selection(include_formats, exclude_formats, sort_keys)
+    selection = Selection(include_formats, exclude_formats, sort_keys, genre, exclude_genre)
 
     merge_name = sanitize_filename(args.merge.strip() or DEFAULT_MERGE_NAME) if args.merge is not None else None
 
