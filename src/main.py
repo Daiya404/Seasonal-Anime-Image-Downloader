@@ -5,9 +5,9 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
-from .anilist import get_seasonal_anime, filter_by_format
+from .anilist import get_seasonal_anime, get_yearly_anime, filter_by_format
 from .downloader import Downloader
-from .seasons import Job, parse_jobs
+from .seasons import SEASONS, Job, parse_jobs
 from .utils import (
     get_current_season,
     normalize_season,
@@ -54,18 +54,21 @@ def process_job(
     exclude_formats: list[str] | None,
     dl: Downloader,
 ) -> JobOutcome:
-    """Fetch, filter and download one season"""
+    """Fetch, filter and download one season (or one whole year)"""
     logging.info("=" * 60)
-    logging.info(f"Processing {job.name}")
+    logging.info(f"Processing {job.label}")
     logging.info("=" * 60)
 
-    anime_list = get_seasonal_anime(
-        job.season,
-        job.year,
-        include_adult=args.include_adult,
-        include_continuing=not args.no_continuing,
-        grace_days=args.grace_days
-    )
+    if job.season is None:
+        anime_list = get_yearly_anime(job.year, include_adult=args.include_adult)
+    else:
+        anime_list = get_seasonal_anime(
+            job.season,
+            job.year,
+            include_adult=args.include_adult,
+            include_continuing=not args.no_continuing,
+            grace_days=args.grace_days
+        )
     logging.info(f"Successfully fetched {len(anime_list)} anime titles")
 
     if include_formats or exclude_formats:
@@ -78,12 +81,12 @@ def process_job(
         logging.info(f"Limited to the top {args.limit} titles by popularity")
 
     if not anime_list:
-        logging.warning(f"No anime found for {job.name}")
-        return JobOutcome(job.name)
+        logging.warning(f"No anime found for {job.label}")
+        return JobOutcome(job.label)
 
     results = dl.download_all(anime_list, job.name, write_json=not args.no_json)
     outcome = JobOutcome(
-        job.name,
+        job.label,
         downloaded=sum(1 for result in results if result.get("status") == "ok"),
         skipped=sum(1 for result in results if result.get("status") == "skipped"),
         failed=sum(1 for result in results if result.get("status") == "failed"),
@@ -92,6 +95,16 @@ def process_job(
     if not args.no_json:
         logging.info(f"Metadata saved to {dl.out_dir / job.name / 'metadata.json'}")
     return outcome
+
+
+def needs_year_tip(jobs: list[Job]) -> bool:
+    """True if a current or future year is requested as all four seasons."""
+    now_year = datetime.now().year
+    for year in {job.year for job in jobs if job.year >= now_year}:
+        seasons = {job.season for job in jobs if job.year == year}
+        if None not in seasons and seasons >= set(SEASONS):
+            return True
+    return False
 
 
 def main():
@@ -104,7 +117,7 @@ def main():
         "--season",
         nargs="+",
         metavar="SEASON",
-        help="Season(s), comma separated: winter, spring, summer, fall (autumn works) or any (all four). Add :YEAR (or :START-END) to give one its own years, e.g. winter:2025 or winter:2023-2025. Auto-detects the current season if not specified"
+        help="Season(s), comma separated: winter, spring, summer, fall (autumn works), any (all four) or year (the whole year, including shows with no season yet). Add :YEAR (or :START-END) to give one its own years, e.g. winter:2025 or year:2023-2025. Auto-detects the current season if not specified"
     )
     parser.add_argument(
         "-y",
@@ -217,10 +230,12 @@ def main():
     logging.info("=" * 60)
     for warning in warnings:
         logging.warning(warning)
-    logging.info(f"Seasons to process ({len(jobs)}): {', '.join(job.name for job in jobs)}")
+    logging.info(f"To process ({len(jobs)}): {', '.join(job.label for job in jobs)}")
+    if needs_year_tip(jobs):
+        logging.info("Tip: shows without an assigned season are not in season folders, use -s year to include them")
     if not args.include_adult:
         logging.info("Filtering out adult content (use --include-adult to disable)")
-    if not args.no_continuing:
+    if not args.no_continuing and any(job.season is not None for job in jobs):
         logging.info("Including anime continuing from previous season (use --no-continuing to disable)")
 
     logging.info(f"Using {args.workers} download workers")
@@ -237,8 +252,8 @@ def main():
         try:
             outcomes.append(process_job(job, args, include_formats, exclude_formats, dl))
         except Exception as e:
-            logging.error(f"{job.name} failed: {e}")
-            outcomes.append(JobOutcome(job.name, error=str(e)))
+            logging.error(f"{job.label} failed: {e}")
+            outcomes.append(JobOutcome(job.label, error=str(e)))
 
     logging.info("=" * 60)
     logging.info("Summary")

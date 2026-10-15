@@ -61,6 +61,12 @@ python -m src -s any -y 2025
 
 # A range of years
 python -m src -s winter -y 2023-2025
+
+# A whole year in one folder named after the year (includes shows with no season yet)
+python -m src -s year:2027 -f tv -l 50
+
+# Several whole years, one folder each
+python -m src -s year -y 2025-2027
 ```
 
 ### Full Options
@@ -78,22 +84,22 @@ python -m src \
 
 ## Arguments
 
-| Argument           | Short | Description                                                                                      | Default        |
-| ------------------ | ----- | ------------------------------------------------------------------------------------------------ | -------------- |
-| `--season`         | `-s`  | Season(s), comma separated: Winter/Spring/Summer/Fall (`autumn` also works), or `any` for all four. Add `:year` or `:start-end` to give one its own years, e.g. `winter:2025` or `winter:2023-2025` | Current season |
-| `--year`           | `-y`  | Year(s) or ranges, comma separated, e.g. `2025, 2023-2026`. Applies to seasons without their own year | Current year   |
-| `--out`            | `-o`  | Output directory                                                                                 | `seasonal`     |
-| `--workers`        | `-w`  | Number of parallel download workers                                                              | 8              |
-| `--delay`          | `-d`  | Minimum delay between image requests, shared by all workers (seconds)                            | 0.15           |
-| `--grace-days`     | `-g`  | Days into a season a previous-season show must still air to count as continuing                  | 21             |
-| `--no-continuing`  |       | Exclude anime continuing from the previous season                                                | False          |
-| `--no-json`        |       | Skip metadata JSON output                                                                        | False          |
-| `--include-adult`  |       | Include adult/hentai content                                                                     | False          |
-| `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format` | All formats    |
-| `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                  | None           |
-| `--limit`          | `-l`  | Keep only the N most popular titles per season, applied after format filters                   | All titles     |
-| `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback   | `romaji`       |
-| `--force`          |       | Re-download images even if they already exist                                                    | False          |
+| Argument           | Short | Description                                                                                                                                                                                                                                                       | Default        |
+| ------------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `--season`         | `-s`  | Season(s), comma separated: Winter/Spring/Summer/Fall (`autumn` also works), `any` for all four, or `year` for the whole year including shows with no season yet. Add `:year` or `:start-end` to give one its own years, e.g. `winter:2025` or `winter:2023-2025` | Current season |
+| `--year`           | `-y`  | Year(s) or ranges, comma separated, e.g. `2025, 2023-2026`. Applies to seasons without their own year                                                                                                                                                             | Current year   |
+| `--out`            | `-o`  | Output directory                                                                                                                                                                                                                                                  | `seasonal`     |
+| `--workers`        | `-w`  | Number of parallel download workers                                                                                                                                                                                                                               | 8              |
+| `--delay`          | `-d`  | Minimum delay between image requests, shared by all workers (seconds)                                                                                                                                                                                             | 0.15           |
+| `--grace-days`     | `-g`  | Days into a season a previous-season show must still air to count as continuing (seasons only)                                                                                                                                                                    | 21             |
+| `--no-continuing`  |       | Exclude anime continuing from the previous season (seasons only)                                                                                                                                                                                                  | False          |
+| `--no-json`        |       | Skip metadata JSON output                                                                                                                                                                                                                                         | False          |
+| `--include-adult`  |       | Include adult/hentai content                                                                                                                                                                                                                                      | False          |
+| `--format`         | `-f`  | Only download the specified formats, comma separated; mutually exclusive with `--exclude-format`                                                                                                                                                                  | All formats    |
+| `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                                                                                                                                                                                   | None           |
+| `--limit`          | `-l`  | Keep only the N most popular titles per season, applied after format filters                                                                                                                                                                                      | All titles     |
+| `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback                                                                                                                                                                    | `romaji`       |
+| `--force`          |       | Re-download images even if they already exist                                                                                                                                                                                                                     | False          |
 
 Title languages are tried in the order provided. For example, `-t english,native` uses English
 titles first, then native titles, then romaji. Existing files are renamed when the selected

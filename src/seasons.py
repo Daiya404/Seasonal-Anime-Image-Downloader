@@ -15,22 +15,32 @@ MIN_YEAR = 1900
 
 ALIASES = {"AUTUMN": "FALL"}
 WILDCARD_ANY = "ANY"
+WILDCARD_YEAR = "YEAR"
 
 
 @dataclass(frozen=True)
 class Job:
-    """One season of one year to download"""
-    season: str
+    """One season of one year, or a whole year when season is None"""
+    season: str | None
     year: int
 
     @property
     def name(self) -> str:
-        """Folder name and display name, e.g. 'Winter 2025'"""
+        """Folder name: 'Winter 2025', or just '2025' for a whole year"""
+        if self.season is None:
+            return str(self.year)
         return format_season_name(self.season, self.year)
 
     @property
+    def label(self) -> str:
+        """Name for logs: 'Winter 2025' or 'Year 2025'"""
+        if self.season is None:
+            return f"Year {self.year}"
+        return self.name
+
+    @property
     def sort_key(self) -> tuple[int, int]:
-        return (self.year, SEASONS.index(self.season))
+        return (self.year, -1 if self.season is None else SEASONS.index(self.season))
 
 
 def max_year() -> int:
@@ -104,11 +114,11 @@ def _parse_season_item(item: str, previous: str | None) -> tuple[str, list[int] 
 
     key = name.upper()
     key = ALIASES.get(key, key)
-    if key != WILDCARD_ANY and key not in SEASONS:
-        valid = [s.lower() for s in SEASONS] + ["autumn", "any"]
+    if key not in (WILDCARD_ANY, WILDCARD_YEAR) and key not in SEASONS:
+        valid = [s.lower() for s in SEASONS] + ["autumn", "any", "year"]
         close = difflib.get_close_matches(name.lower(), valid, n=1)
         hint = f" Did you mean '{close[0]}'?" if close else ""
-        raise ValueError(f"Unknown season '{name}'.{hint} Valid: winter, spring, summer, fall (autumn), any")
+        raise ValueError(f"Unknown season '{name}'.{hint} Valid: winter, spring, summer, fall (autumn), any, year")
 
     return key, (parse_years(year_text) if sep else None)
 
@@ -125,7 +135,8 @@ def parse_jobs(
     An item with its own year or range (winter:2025, winter:2023-2025) uses only
     those years. A bare season is combined with every year from --year (single
     years and ranges), or default_year if there is none. 'any' stands for all
-    four seasons. Duplicates are removed and the result is sorted oldest first.
+    four seasons. 'year' stands for the whole year (all shows, including ones
+    with no season). Duplicates are removed and the result is sorted oldest first.
 
     Args:
         season_args: Raw --season tokens, or None
@@ -159,7 +170,12 @@ def parse_jobs(
         key, explicit_years = _parse_season_item(item, previous)
         previous = item.partition(":")[0]
 
-        seasons = SEASONS if key == WILDCARD_ANY else (key,)
+        if key == WILDCARD_ANY:
+            seasons: tuple[str | None, ...] = SEASONS
+        elif key == WILDCARD_YEAR:
+            seasons = (None,)
+        else:
+            seasons = (key,)
         if explicit_years is None:
             used_year_list = True
             target_years = years
