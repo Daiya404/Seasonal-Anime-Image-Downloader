@@ -156,7 +156,8 @@ def parse_jobs(
         default_year: Year used when --year is missing
 
     Returns:
-        (jobs, warnings)
+        (jobs, warnings, correction). correction is (raw, corrected) when a
+        misspelled season was matched to the nearest one, otherwise None
 
     Raises:
         ValueError: On invalid input

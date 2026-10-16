@@ -141,8 +141,19 @@ def parse_genre_expression(text: str, option: str) -> tuple[GenreMatcher, tuple[
     """
     Parse a genre expression into a matcher.
 
-    Operators are `&` for both, `|` for either, `!` or `~` for not, and
-    parentheses for grouping. Operators bind in the order not, and, or.
+    Operators are & (both), | (either), ! or ~ (not) and parentheses. ! binds
+    tightest, then &, then |. Names are case-insensitive, may contain spaces and
+    may be an alias (sol, scifi, magical girl). A close misspelling is matched
+    to the nearest genre.
+
+    Returns:
+        (matcher, correction). The matcher takes a show's genre list and
+        returns True on a match. correction is (raw, corrected) when a
+        misspelling was matched, otherwise None
+
+    Raises:
+        ValueError: On an empty expression, an unknown genre, a missing
+            operator or genre, or unbalanced parentheses
     """
     if not text.strip():
         raise ValueError(f'{option} needs an expression, like {option} "comedy&!romance"')

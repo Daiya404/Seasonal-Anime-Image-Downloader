@@ -4,8 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
-from .utils import pick_title
-from .utils import fuzzy_match
+from .utils import fuzzy_match, pick_title
 
 # Sort keys, and whether the natural direction is descending (highest first)
 SORT_KEYS = {

@@ -8,6 +8,7 @@ from typing import Iterable
 SEASON_START_MONTH = {"WINTER": 1, "SPRING": 4, "SUMMER": 7, "FALL": 10}
 VALID_FORMATS = ("TV", "TV_SHORT", "MOVIE", "SPECIAL", "OVA", "ONA", "MUSIC")
 VALID_TITLE_LANGUAGES = ("romaji", "english", "native")
+_WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
 
 
 def fuzzy_match(word: str, possibilities: Iterable[str], cutoff: float = 0.6) -> str | None:
@@ -32,6 +33,7 @@ def parse_choices(
         values: Raw tokens from argparse (each may contain commas)
         valid: Allowed values; matching is case-insensitive
         option: Option name, used in error messages
+        fuzzy: Whether to accept close matches and return a correction
 
     Returns:
         Canonical values and an optional (raw, corrected) fuzzy correction
@@ -115,6 +117,9 @@ def sanitize_filename(name: str, max_length: int = 100) -> str:
     # Fallback if empty after sanitization
     if not name:
         name = "untitled"
+
+    if name.split(".")[0].upper() in _WINDOWS_RESERVED:
+        name = f"_{name}"
     
     return name
 

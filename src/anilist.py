@@ -104,6 +104,7 @@ def _is_continuing(anime, season, year, grace_days):
     season_start = date(year, SEASON_START_MONTH[season.upper()], 1)
     return end_date > season_start + timedelta(days=grace_days)
 
+
 def get_previous_season(season: str, year: int):
     """
     Get the previous season and year
@@ -138,7 +139,7 @@ def get_seasonal_anime(season: str, year: int, per_page: int = 50, include_adult
             airing to count as continuing (default: 21)
 
     Returns:
-        List of anime dictionaries with id, title, coverImage, siteUrl
+        List of anime dictionaries (all fields from the query), sorted by popularity (highest first)
     """
     # Current season
     logging.info(f"Fetching {format_season_name(season, year)} anime...")
@@ -196,6 +197,7 @@ def get_yearly_anime(year: int, per_page: int = 50, include_adult: bool = False)
     logging.info(f"Found {len(by_season)} anime by season and {added} more by start date")
     return sorted(results.values(), key=lambda anime: anime.get("popularity") or 0, reverse=True)
 
+
 def _post(query: str, variables: dict, retries: int = 3) -> dict:
     """POST to AniList, retrying rate limits and transient failures."""
     for attempt in range(1, retries + 1):
@@ -213,6 +215,8 @@ def _post(query: str, variables: dict, retries: int = 3) -> dict:
             continue
 
         if resp.status_code == 429:
+            if attempt == retries:
+                break
             try:
                 wait = max(0, int(float(resp.headers.get("Retry-After", 60))))
             except (TypeError, ValueError):
@@ -224,9 +228,11 @@ def _post(query: str, variables: dict, retries: int = 3) -> dict:
             logging.warning(f"AniList returned HTTP {resp.status_code}, retrying ({attempt}/{retries})...")
             time.sleep(2 * attempt)
             continue
-        resp.raise_for_status()
+        if not resp.ok:
+            raise requests.HTTPError(f"HTTP {resp.status_code} from AniList: {resp.text[:300]}", response=resp)
         return resp.json()
     raise RuntimeError("AniList rate limit: retries exhausted")
+
 
 def _fetch_pages(query: str, variables: dict, per_page: int, is_adult: bool) -> list[dict]:
     """Fetch every page of a query using AniList's strict adult filter."""

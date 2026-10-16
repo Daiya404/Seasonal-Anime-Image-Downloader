@@ -196,9 +196,12 @@ def select_and_download(
     logging.info(f"Download complete: {outcome.downloaded} downloaded, {outcome.skipped} skipped, {outcome.failed} failed")
     if not args.no_json:
         logging.info(f"Metadata saved to {dl.out_dir / folder_name / 'metadata.json'}")
-    removed = dl.prune(folder_name, {anime["id"] for anime in anime_list})
-    if removed:
-        logging.info(f"Removed {len(removed)} stale files from {folder_name}")
+    if getattr(args, "no_prune", False):
+        logging.info("Keeping files from earlier runs (--no-prune)")
+    else:
+        removed = dl.prune(folder_name, {anime["id"] for anime in anime_list})
+        if removed:
+            logging.info(f"Removed {len(removed)} files that are not part of this run from {folder_name}")
     return outcome, anime_list
 
 
@@ -245,7 +248,7 @@ def run_merged(
     log_section(f"Merging into {folder_name}")
     logging.info(f"{len(merged)} unique titles from {len(jobs)} seasons/years")
 
-    outcome, downloaded = select_and_download(
+    outcome, _ = select_and_download(
         folder_name,
         folder_name,
         list(merged.values()),
@@ -255,8 +258,6 @@ def run_merged(
         extra_metadata={"seasons": [job.label for job in jobs]},
     )
 
-    if not downloaded:
-        logging.warning(f"Nothing to download, so nothing was removed from {folder_name}")
     return outcome
 
 
@@ -356,7 +357,7 @@ def main():
         "-l",
         "--limit",
         type=positive_int,
-        help="Only keep the N most popular titles per season, or in total with --merge (applied after format filters)"
+        help="Only keep the top N titles per season, or in total with --merge (applied after format and genre filters and --sort)"
     )
     parser.add_argument(
         "-t",
@@ -372,6 +373,11 @@ def main():
         help="Re-download images even if they already exist"
     )
     parser.add_argument(
+        "--no-prune",
+        action="store_true",
+        help="Keep images from earlier runs. By default each folder is kept in sync with the latest run, and images this tool downloaded earlier that are no longer part of it are removed"
+    )
+    parser.add_argument(
         "-Y",
         "--yes",
         action="store_true",
@@ -383,7 +389,7 @@ def main():
         nargs="?",
         const=DEFAULT_MERGE_NAME,
         metavar="NAME",
-        help=f"Put everything into one folder (default name: {DEFAULT_MERGE_NAME}) instead of one per season. Duplicates are merged, and files in that folder that are not part of this run are removed"
+        help=f"Put everything into one folder (default name: {DEFAULT_MERGE_NAME}) instead of one per season. Duplicates are merged"
     )
     parser.add_argument(
         "-S",
@@ -406,8 +412,17 @@ def main():
     corrections: list[tuple[str, str, str]] = []
 
     try:
-        include_formats, _ = parse_choices(args.format, VALID_FORMATS, "--format") if args.format else (None, None)
-        exclude_formats, _ = parse_choices(args.exclude_format, VALID_FORMATS, "--exclude-format") if args.exclude_format else (None, None)
+        include_formats, format_correction = (
+            parse_choices(args.format, VALID_FORMATS, "--format", fuzzy=True) if args.format else (None, None)
+        )
+        if format_correction:
+            corrections.append(("--format", *format_correction))
+
+        exclude_formats, exclude_format_correction = (
+            parse_choices(args.exclude_format, VALID_FORMATS, "--exclude-format", fuzzy=True) if args.exclude_format else (None, None)
+        )
+        if exclude_format_correction:
+            corrections.append(("--exclude-format", *exclude_format_correction))
 
         title_languages, title_correction = parse_choices(
             args.title_language,
