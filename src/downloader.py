@@ -2,6 +2,7 @@
 
 import os
 import json
+import re
 import time
 import logging
 from pathlib import Path
@@ -13,6 +14,11 @@ from typing import List, Sequence
 from .utils import sanitize_filename, pick_title
 
 
+# Names this tool gives its own files: 'rank - AniList id - title.jpg'
+_IMAGE_NAME_RE = re.compile(r"^\d+ - (\d+) - .*\.jpg$")
+_PART_NAME_RE = re.compile(r"^\d+ - \d+ - .*\.jpg\.part$")
+
+
 class Downloader:
     def __init__(self, out_dir: str | Path, max_workers: int = 8, delay: float = 0.15, retries: int = 2, backoff: float = 1.0, title_languages: Sequence[str] = ("romaji",), force: bool = False):
         self.out_dir = Path(out_dir)
@@ -22,9 +28,14 @@ class Downloader:
         self.backoff = backoff
         self.title_languages = tuple(title_languages)
         self.force = force
-        self.session = requests.Session()
+        self._local = threading.local()
         self._rate_lock = threading.Lock()
         self._next_slot = 0.0
+
+    def _get_session(self) -> requests.Session:
+        if not hasattr(self._local, "session"):
+            self._local.session = requests.Session()
+        return self._local.session
 
     def _throttle(self):
         """Global spacing between requests, shared by all workers"""
@@ -50,7 +61,7 @@ class Downloader:
         existing = next(season_folder.glob(f"* - {item['id']} - *.jpg"), None)
         if not self.force and existing and existing.stat().st_size > 1024:
             if existing != filepath:
-                existing.rename(filepath)  # rank changed, fix the number
+                existing.replace(filepath)  # rank changed, fix the number
             logging.info(f"Skipping existing {filename}")
             return {"status": "skipped", "file": str(filepath), "title": title}
 
@@ -58,7 +69,7 @@ class Downloader:
         while attempt <= self.retries:
             try:
                 self._throttle()
-                resp = self.session.get(url, timeout=30)
+                resp = self._get_session().get(url, timeout=30)
                 resp.raise_for_status()
                 tmp = filepath.with_name(filepath.name + ".part")
                 with open(tmp, "wb") as f:
@@ -75,7 +86,13 @@ class Downloader:
         
         return {"status": "failed", "file": str(filepath), "title": title}
 
-    def download_all(self, anime_list: List[dict], season_name: str, write_json: bool = True) -> List[dict]:
+    def download_all(
+        self,
+        anime_list: List[dict],
+        season_name: str,
+        write_json: bool = True,
+        extra_metadata: dict | None = None,
+    ) -> List[dict]:
         season_folder = self.out_dir / season_name
         season_folder.mkdir(parents=True, exist_ok=True)
 
@@ -99,6 +116,28 @@ class Downloader:
         if write_json:
             meta_path = season_folder / "metadata.json"
             with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump({"season": season_name, "items": results}, f, ensure_ascii=False, indent=2)
+                json.dump({"season": season_name, **(extra_metadata or {}), "items": results}, f, ensure_ascii=False, indent=2)
 
         return results
+
+    def prune(self, folder_name: str, keep_ids: set[int]) -> list[str]:
+        """
+        Remove tool-owned images not in keep_ids and leftover partial files.
+
+        Other files and subfolders are left untouched.
+        """
+        folder = self.out_dir / folder_name
+        removed: list[str] = []
+        if not folder.is_dir():
+            return removed
+
+        for path in sorted(folder.iterdir()):
+            if not path.is_file():
+                continue
+            match = _IMAGE_NAME_RE.match(path.name)
+            stale_image = match is not None and int(match.group(1)) not in keep_ids
+            if stale_image or _PART_NAME_RE.match(path.name):
+                path.unlink()
+                removed.append(path.name)
+                logging.info(f"Removed {path.name}")
+        return removed
