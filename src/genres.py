@@ -52,6 +52,8 @@ class _Parser:
 
     def __init__(self, tokens: list[str], option: str):
         self.tokens = tokens
+        self.corrected_tokens = list(tokens)
+        self.had_typo = False
         self.option = option
         self.pos = 0
 
@@ -108,6 +110,7 @@ class _Parser:
         return self._genre(token)
 
     def _genre(self, name: str) -> _Predicate:
+        index = self.pos - 1
         key = " ".join(name.casefold().split())
         if key in _LOOKUP:
             return _has(_LOOKUP[key])
@@ -115,15 +118,23 @@ class _Parser:
         words = key.split()
         if len(words) > 1 and sum(word in _LOOKUP for word in words) >= 2:
             hint = " Did you forget & or | between genres?"
-        else:
-            close = difflib.get_close_matches(key, list(_LOOKUP), n=1)
-            hint = f" Did you mean '{_LOOKUP[close[0]]}'?" if close else ""
+            raise self._error(
+                f"unknown genre '{name}'.{hint} Valid: {', '.join(VALID_GENRES)}. Aliases: {', '.join(GENRE_ALIASES)}"
+            )
+
+        close = difflib.get_close_matches(key, list(_LOOKUP), n=1, cutoff=0.6)
+        if close:
+            matched_canonical = _LOOKUP[close[0]]
+            self.corrected_tokens[index] = matched_canonical.lower()
+            self.had_typo = True
+            return _has(matched_canonical)
+
         raise self._error(
-            f"unknown genre '{name}'.{hint} Valid: {', '.join(VALID_GENRES)}. Aliases: {', '.join(GENRE_ALIASES)}"
+            f"unknown genre '{name}'. Valid: {', '.join(VALID_GENRES)}. Aliases: {', '.join(GENRE_ALIASES)}"
         )
 
 
-def parse_genre_expression(text: str, option: str) -> GenreMatcher:
+def parse_genre_expression(text: str, option: str) -> tuple[GenreMatcher, tuple[str, str] | None]:
     """
     Parse a genre expression into a matcher.
 
@@ -133,9 +144,11 @@ def parse_genre_expression(text: str, option: str) -> GenreMatcher:
     if not text.strip():
         raise ValueError(f'{option} needs an expression, like {option} "comedy&!romance"')
 
-    predicate = _Parser(_tokenize(text), option).parse()
+    parser = _Parser(_tokenize(text), option)
+    predicate = parser.parse()
+    correction = (text.strip(), "".join(parser.corrected_tokens)) if parser.had_typo else None
 
     def matches(genres: Iterable[str] | None) -> bool:
         return predicate(frozenset(genre.casefold() for genre in genres or ()))
 
-    return matches
+    return matches, correction

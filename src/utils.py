@@ -1,14 +1,30 @@
 # src/utils.py
 
+import difflib
 import re
 from datetime import datetime
+from typing import Iterable
 
 SEASON_START_MONTH = {"WINTER": 1, "SPRING": 4, "SUMMER": 7, "FALL": 10}
 VALID_FORMATS = ("TV", "TV_SHORT", "MOVIE", "SPECIAL", "OVA", "ONA", "MUSIC")
 VALID_TITLE_LANGUAGES = ("romaji", "english", "native")
 
 
-def parse_choices(values: list[str], valid: tuple[str, ...], option: str) -> list[str]:
+def fuzzy_match(word: str, possibilities: Iterable[str], cutoff: float = 0.6) -> str | None:
+    """Return the closest match from possibilities, or None."""
+    candidates = list(possibilities)
+    matches = difflib.get_close_matches(word.lower(), [candidate.lower() for candidate in candidates], n=1, cutoff=cutoff)
+    if not matches:
+        return None
+    return next(candidate for candidate in candidates if candidate.lower() == matches[0])
+
+
+def parse_choices(
+    values: list[str],
+    valid: tuple[str, ...],
+    option: str,
+    fuzzy: bool = False,
+) -> tuple[list[str], tuple[str, str] | None]:
     """
     Parse CLI values like ["tv,", "ona"] or ["tv,ona"] into canonical values.
 
@@ -18,28 +34,44 @@ def parse_choices(values: list[str], valid: tuple[str, ...], option: str) -> lis
         option: Option name, used in error messages
 
     Returns:
-        Canonical values, deduplicated, in the order given
+        Canonical values and an optional (raw, corrected) fuzzy correction
 
     Raises:
         ValueError: If a value is not in valid or nothing was given
     """
     canonical = {value.lower(): value for value in valid}
     items: list[str] = []
+    raw_parts: list[str] = []
+    fixed_parts: list[str] = []
+    had_typo = False
+
     for value in values:
         for part in value.split(","):
-            key = part.strip().lower()
+            raw = part.strip()
+            key = raw.lower()
             if not key:
                 continue
-            if key not in canonical:
-                raise ValueError(
-                    f"Invalid value '{part.strip()}' for {option}. "
-                    f"Valid: {', '.join(valid)}"
-                )
-            if canonical[key] not in items:
-                items.append(canonical[key])
+            if key in canonical:
+                resolved = canonical[key]
+                raw_parts.append(raw)
+                fixed_parts.append(resolved.lower())
+            else:
+                match = fuzzy_match(key, canonical.keys()) if fuzzy else None
+                if match is None:
+                    close = fuzzy_match(key, canonical.keys())
+                    hint = f" Did you mean '{canonical[close]}'?" if close else ""
+                    raise ValueError(f"Invalid value '{raw}' for {option}.{hint} Valid: {', '.join(valid)}")
+                resolved = canonical[match]
+                had_typo = True
+                raw_parts.append(raw)
+                fixed_parts.append(match)
+
+            if resolved not in items:
+                items.append(resolved)
     if not items:
         raise ValueError(f"{option} needs at least one value. Valid: {', '.join(valid)}")
-    return items
+    correction = (",".join(raw_parts), ",".join(fixed_parts)) if had_typo else None
+    return items, correction
 
 
 def pick_title(

@@ -5,7 +5,7 @@ import difflib
 from dataclasses import dataclass
 from datetime import datetime
 
-from .utils import SEASON_START_MONTH, format_season_name
+from .utils import SEASON_START_MONTH, format_season_name, fuzzy_match
 
 # WINTER, SPRING, SUMMER, FALL in calendar order
 SEASONS = tuple(SEASON_START_MONTH)
@@ -103,12 +103,12 @@ def parse_years(text: str) -> list[int]:
     return [parse_year(text)]
 
 
-def _parse_season_item(item: str, previous: str | None) -> tuple[str, list[int] | None]:
+def _parse_season_item(item: str, previous: str | None) -> tuple[str, list[int] | None, str]:
     """
     Parse one season item: NAME, NAME:YEAR or NAME:START-END
 
     Returns:
-        (season name in uppercase or 'ANY', explicit years or None)
+        (season name in uppercase or 'ANY', explicit years or None, corrected item)
     """
     if item.isdigit() or _RANGE_RE.match(item):
         hint = f"Did you mean '{previous}:{item}'? " if previous else ""
@@ -120,15 +120,19 @@ def _parse_season_item(item: str, previous: str | None) -> tuple[str, list[int] 
     if sep and (not name or not year_text or ":" in year_text):
         raise ValueError(f"Invalid season '{item}'. Use NAME or NAME:YEAR, like winter or winter:2025")
 
+    corrected_name = name.lower()
     key = name.upper()
     key = ALIASES.get(key, key)
     if key not in (WILDCARD_ANY, WILDCARD_YEAR) and key not in SEASONS:
         valid = [s.lower() for s in SEASONS] + ["autumn", "any", "year"]
-        close = difflib.get_close_matches(name.lower(), valid, n=1)
-        hint = f" Did you mean '{close[0]}'?" if close else ""
-        raise ValueError(f"Unknown season '{name}'.{hint} Valid: winter, spring, summer, fall (autumn), any, year")
+        close = difflib.get_close_matches(name.lower(), valid, n=1, cutoff=0.6)
+        if not close:
+            raise ValueError(f"Unknown season '{name}'. Valid: winter, spring, summer, fall (autumn), any, year")
+        corrected_name = close[0]
+        key = ALIASES.get(corrected_name.upper(), corrected_name.upper())
 
-    return key, (parse_years(year_text) if sep else None)
+    corrected_item = f"{corrected_name}:{year_text}" if sep else corrected_name
+    return key, (parse_years(year_text) if sep else None), corrected_item
 
 
 def parse_jobs(
@@ -136,7 +140,7 @@ def parse_jobs(
     year_args: list[str] | None,
     default_season: str,
     default_year: int,
-) -> tuple[list[Job], list[str]]:
+) -> tuple[list[Job], list[str], tuple[str, str] | None]:
     """
     Turn --season and --year values into a list of jobs
 
@@ -174,9 +178,14 @@ def parse_jobs(
     jobs: set[Job] = set()
     used_year_list = False
     previous: str | None = None
+    fixed_items: list[str] = []
+    had_typo = False
     for item in season_items:
-        key, explicit_years = _parse_season_item(item, previous)
-        previous = item.partition(":")[0]
+        key, explicit_years, corrected_item = _parse_season_item(item, previous)
+        if corrected_item.lower() != item.lower():
+            had_typo = True
+        fixed_items.append(corrected_item)
+        previous = corrected_item.partition(":")[0]
 
         if key == WILDCARD_ANY:
             seasons: tuple[str | None, ...] = SEASONS
@@ -197,4 +206,5 @@ def parse_jobs(
     if year_items and not used_year_list:
         warnings.append("--year was ignored because every season already has its own year")
 
-    return sorted(jobs, key=lambda job: job.sort_key), warnings
+    correction = (",".join(season_items), ",".join(fixed_items)) if had_typo else None
+    return sorted(jobs, key=lambda job: job.sort_key), warnings, correction

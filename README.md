@@ -14,8 +14,10 @@ Downloads anime cover images from AniList for a given season. Perfect for:
 
 ## Features
 
-- 🔍 Fetches seasonal anime from AniList API, sorted by popularity
+- 🔍 Fetches seasonal or whole-year anime from the AniList API, across single or multiple seasons and year ranges
 - 🔄 Includes anime continuing from the previous season (with a configurable grace period)
+- 🎯 Filters by format and boolean genre expressions (`&`, `|`, `!`, parentheses), with custom sorting (`popularity`, `score`, `title`, `start`, `end`, `id`, `mal_id`)
+- 🗂️ Optional `--merge` mode to combine multiple seasons or years into a single deduplicated, auto-pruned folder
 - 📥 Downloads cover images in parallel with retry logic
 - 📊 Saves metadata JSON for reference
 - ⚡ Global rate limiting, and automatic waiting and retrying when AniList rate limits you
@@ -125,12 +127,12 @@ python -m src -s fall --exclude-genre "ecchi|horror"
 | `--exclude-format` |       | Skip the specified formats, comma separated; mutually exclusive with `--format`                                                                                                                                                                                   | None           |
 | `--genre`          | `-G`  | Only keep shows whose genres match an expression: `&` both, `\|` either, `!` or `~` not, parentheses to group, e.g. `"(comedy&!romance)\|action"`. Names are case-insensitive and short forms work (`sol`, `scifi`, `magical girl`)                               | All            |
 | `--exclude-genre`  |       | Drop shows whose genres match an expression (same syntax). Can be combined with `--genre`                                                                                                                                                                         | None           |
-| `--limit`          | `-l`  | Keep only the N most popular titles per season, applied after format filters                                                                                                                                                                                      | All titles     |
+| `--limit`          | `-l`  | Keep only the top N titles per season (or in total with `--merge`), applied after format and genre filters and `--sort`                                                                                                                                           | All titles     |
 | `--merge`          | `-m`  | Put everything into one folder (named `Merged`, or the name you give) instead of one per season. Duplicates are merged, and images from earlier runs that aren't part of this run are removed from that folder                                                    | False          |
 | `--sort`           | `-S`  | Sort by `popularity`, `score`, `title`, `start`, `end`, `id`, or `mal_id`; add `:asc` or `:desc`. Controls ranks and `--limit`; popularity and id are added as tie-breakers, and missing values go last                                                           | popularity     |
 | `--title-language` | `-t`  | File-name title priority: `romaji`, `english`, `native`; `romaji` is always the final fallback                                                                                                                                                                    | `romaji`       |
 | `--force`          |       | Re-download images even if they already exist                                                                                                                                                                                                                     | False          |
-| `--yes`            | `-Y`  | Skip the confirmation prompt for large runs (more than 5 seasons' worth, a whole year counts as 4)                                                                                                                                                                | False          |
+| `--yes`            | `-Y`  | Skip confirmation prompts for large runs (more than 5 seasons' worth, a whole year counts as 4) and fuzzy-matched option typos                                                                                                                                    | False          |
 
 ### Genre Expression Notes
 
@@ -146,9 +148,9 @@ Title languages are tried in the order provided. For example, `-t english,native
 titles first, then native titles, then romaji. Existing files are renamed when the selected
 language changes; images are not downloaded again.
 
-### Large Runs
+### Confirmation Prompts
 
-Runs covering more than 5 seasons' worth of anime ask for confirmation before downloading. A whole year counts as 4 seasons. Use `--yes` to skip the prompt, including when running without a terminal.
+Runs covering more than 5 seasons' worth of anime (a whole year counts as 4) ask for confirmation before downloading. Close typos in `--season`, `--sort`, `--genre`, `--exclude-genre`, and `--title-language` also ask for confirmation (`Did you mean ...? (Y/n)`). Use `--yes` (`-Y`) to accept both automatically, including when running without a terminal.
 
 ## Output Structure
 
@@ -162,7 +164,7 @@ seasonal/
 └── seasonal_downloader.log
 ```
 
-File names are `rank - AniList ID - title`, and `metadata.json` lists the anime in popularity order.
+File names are `rank - AniList ID - title`, and `metadata.json` lists the anime in the selected `--sort` order (popularity by default).
 
 ## Using with TierMaker
 

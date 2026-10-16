@@ -54,6 +54,26 @@ def describe_jobs(jobs: list[Job], keep: int = 3) -> str:
     return f"{', '.join(names[:keep])}, ... {hidden} more ..., {', '.join(names[-keep:])}"
 
 
+def confirm_corrections(corrections: list[tuple[str, str, str]], assume_yes: bool) -> bool:
+    """Ask the user to confirm fuzzy-matched CLI arguments, defaulting to yes."""
+    if not corrections:
+        return True
+    for option, raw, fixed in corrections:
+        if assume_yes:
+            print(f'Assuming {option} "{fixed}" (from "{raw}")')
+            continue
+        if not sys.stdin.isatty():
+            sys.exit(f'Unknown value "{raw}" for {option}. Did you mean "{fixed}"? Pass --yes (-Y) to accept automatically.')
+        try:
+            answer = input(f'For {option}, did you mean "{fixed}"? (Y/n) ')
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return False
+        if answer.strip().lower() not in ("", "y", "yes"):
+            return False
+    return True
+
+
 def confirm_large_run(jobs: list[Job], assume_yes: bool) -> bool:
     """Ask before a large run, returning whether it may proceed."""
     weight = sum(job.weight for job in jobs)
@@ -355,7 +375,7 @@ def main():
         "-Y",
         "--yes",
         action="store_true",
-        help=f"Skip the confirmation prompt for large runs (more than {CONFIRM_ABOVE} seasons' worth, a whole year counts as {YEAR_WEIGHT})"
+        help=f"Skip confirmation prompts for large runs (more than {CONFIRM_ABOVE} seasons' worth, a whole year counts as {YEAR_WEIGHT}) and fuzzy-matched typos"
     )
     parser.add_argument(
         "-m",
@@ -383,23 +403,49 @@ def main():
 
     args = parser.parse_args()
 
+    corrections: list[tuple[str, str, str]] = []
+
     try:
-        include_formats = parse_choices(args.format, VALID_FORMATS, "--format") if args.format else None
-        exclude_formats = parse_choices(args.exclude_format, VALID_FORMATS, "--exclude-format") if args.exclude_format else None
-        title_languages = parse_choices(args.title_language, VALID_TITLE_LANGUAGES, "--title-language")
-        sort_keys = parse_sort(args.sort)
-        genre = parse_genre_expression(" ".join(args.genre), "--genre") if args.genre else None
-        exclude_genre = parse_genre_expression(" ".join(args.exclude_genre), "--exclude-genre") if args.exclude_genre else None
-        jobs, warnings = parse_jobs(
+        include_formats, _ = parse_choices(args.format, VALID_FORMATS, "--format") if args.format else (None, None)
+        exclude_formats, _ = parse_choices(args.exclude_format, VALID_FORMATS, "--exclude-format") if args.exclude_format else (None, None)
+
+        title_languages, title_correction = parse_choices(
+            args.title_language,
+            VALID_TITLE_LANGUAGES,
+            "--title-language",
+            fuzzy=True,
+        )
+        if title_correction:
+            corrections.append(("--title-language", *title_correction))
+
+        sort_keys, sort_correction = parse_sort(args.sort)
+        if sort_correction:
+            corrections.append(("--sort", *sort_correction))
+
+        genre, genre_correction = parse_genre_expression(" ".join(args.genre), "--genre") if args.genre else (None, None)
+        if genre_correction:
+            corrections.append(("--genre", *genre_correction))
+
+        exclude_genre, exclude_genre_correction = parse_genre_expression(" ".join(args.exclude_genre), "--exclude-genre") if args.exclude_genre else (None, None)
+        if exclude_genre_correction:
+            corrections.append(("--exclude-genre", *exclude_genre_correction))
+
+        jobs, warnings, season_correction = parse_jobs(
             args.season,
             args.year,
             default_season=normalize_season(get_current_season()),
             default_year=datetime.now().year,
         )
+        if season_correction:
+            corrections.append(("--season", *season_correction))
     except ValueError as e:
         parser.error(str(e))
     if "romaji" not in title_languages:
         title_languages.append("romaji")
+
+    if not confirm_corrections(corrections, args.yes):
+        print("Cancelled, nothing was downloaded.")
+        return 1
 
     selection = Selection(include_formats, exclude_formats, sort_keys, genre, exclude_genre)
 

@@ -1,9 +1,9 @@
-import difflib
 import re
 from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
 from .utils import pick_title
+from .utils import fuzzy_match
 
 # Sort keys, and whether the natural direction is descending (highest first)
 SORT_KEYS = {
@@ -33,7 +33,7 @@ def describe_sort(keys: Sequence[SortKey]) -> str:
     return ", ".join(str(key) for key in keys)
 
 
-def parse_sort(values: list[str] | None) -> list[SortKey]:
+def parse_sort(values: list[str] | None) -> tuple[list[SortKey], tuple[str, str] | None]:
     """
     Parse --sort values like ["score,", "title:desc"] into sort keys.
 
@@ -42,19 +42,31 @@ def parse_sort(values: list[str] | None) -> list[SortKey]:
     """
     keys: list[SortKey] = []
     seen: set[str] = set()
+    raw_parts: list[str] = []
+    fixed_parts: list[str] = []
+    had_typo = False
 
     for value in values or []:
         for part in re.split(r"[,\s]+", value):
             if not part:
                 continue
+            raw_parts.append(part)
             name, sep, direction = part.lower().partition(":")
 
             if name not in SORT_KEYS:
-                close = difflib.get_close_matches(name, SORT_KEYS, n=1)
-                hint = f" Did you mean '{close[0]}'?" if close else ""
-                raise ValueError(f"Unknown sort key '{name}'.{hint} Valid: {', '.join(SORT_KEYS)}")
+                close = fuzzy_match(name, SORT_KEYS)
+                if close is None:
+                    raise ValueError(f"Unknown sort key '{name}'. Valid: {', '.join(SORT_KEYS)}")
+                name = close
+                had_typo = True
             if sep and direction not in ("asc", "desc"):
-                raise ValueError(f"Invalid direction '{direction}' for '{name}'. Use {name}:asc or {name}:desc")
+                close_direction = fuzzy_match(direction, ("asc", "desc"))
+                if close_direction is None:
+                    raise ValueError(f"Invalid direction '{direction}' for '{name}'. Use {name}:asc or {name}:desc")
+                direction = close_direction
+                had_typo = True
+
+            fixed_parts.append(f"{name}:{direction}" if sep else name)
 
             if name in seen:
                 continue
@@ -68,7 +80,8 @@ def parse_sort(values: list[str] | None) -> list[SortKey]:
         if name not in seen:
             seen.add(name)
             keys.append(SortKey(name, SORT_KEYS[name]))
-    return keys
+    correction = (",".join(raw_parts), ",".join(fixed_parts)) if had_typo else None
+    return keys, correction
 
 
 def _date_value(date: dict | None) -> tuple[int, int, int] | None:
