@@ -196,6 +196,9 @@ def select_and_download(
     logging.info(f"Download complete: {outcome.downloaded} downloaded, {outcome.skipped} skipped, {outcome.failed} failed")
     if not args.no_json:
         logging.info(f"Metadata saved to {dl.out_dir / folder_name / 'metadata.json'}")
+    removed = dl.prune(folder_name, {anime["id"] for anime in anime_list})
+    if removed:
+        logging.info(f"Removed {len(removed)} stale files from {folder_name}")
     return outcome, anime_list
 
 
@@ -252,10 +255,7 @@ def run_merged(
         extra_metadata={"seasons": [job.label for job in jobs]},
     )
 
-    if downloaded:
-        removed = dl.prune(folder_name, {anime["id"] for anime in downloaded})
-        logging.info(f"Removed {len(removed)} files that are not part of this run")
-    else:
+    if not downloaded:
         logging.warning(f"Nothing to download, so nothing was removed from {folder_name}")
     return outcome
 

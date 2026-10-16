@@ -1,5 +1,6 @@
 # src/anilist.py
 
+import calendar
 import time
 import requests
 import logging
@@ -95,7 +96,11 @@ def _is_continuing(anime, season, year, grace_days):
     end = anime.get("endDate") or {}
     if not end.get("year"):
         return True  # no end date known, assume still running
-    end_date = date(end["year"], end.get("month") or 12, end.get("day") or 28)
+    end_year = end["year"]
+    end_month = min(max(end.get("month") or 12, 1), 12)
+    max_day = calendar.monthrange(end_year, end_month)[1]
+    end_day = min(max(end.get("day") or max_day, 1), max_day)
+    end_date = date(end_year, end_month, end_day)
     season_start = date(year, SEASON_START_MONTH[season.upper()], 1)
     return end_date > season_start + timedelta(days=grace_days)
 
@@ -192,17 +197,32 @@ def get_yearly_anime(year: int, per_page: int = 50, include_adult: bool = False)
     return sorted(results.values(), key=lambda anime: anime.get("popularity") or 0, reverse=True)
 
 def _post(query: str, variables: dict, retries: int = 3) -> dict:
-    """POST to AniList, sleeping and retrying when rate limited (HTTP 429)"""
-    for _ in range(retries):
-        resp = requests.post(
-            API_URL,
-            json={"query": query, "variables": variables},
-            timeout=30
-        )
+    """POST to AniList, retrying rate limits and transient failures."""
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.post(
+                API_URL,
+                json={"query": query, "variables": variables},
+                timeout=30
+            )
+        except requests.RequestException as error:
+            if attempt == retries:
+                raise
+            logging.warning(f"Request to AniList failed ({error}), retrying ({attempt}/{retries})...")
+            time.sleep(2 * attempt)
+            continue
+
         if resp.status_code == 429:
-            wait = int(resp.headers.get("Retry-After", 60))
+            try:
+                wait = max(0, int(float(resp.headers.get("Retry-After", 60))))
+            except (TypeError, ValueError):
+                wait = 60
             logging.warning(f"Rate limited by AniList, sleeping {wait}s")
             time.sleep(wait)
+            continue
+        if resp.status_code in (500, 502, 503, 504) and attempt < retries:
+            logging.warning(f"AniList returned HTTP {resp.status_code}, retrying ({attempt}/{retries})...")
+            time.sleep(2 * attempt)
             continue
         resp.raise_for_status()
         return resp.json()

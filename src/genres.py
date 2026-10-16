@@ -1,6 +1,9 @@
-import difflib
+# src/genres.py
+
 import re
 from typing import Callable, Iterable
+
+from .utils import fuzzy_match
 
 # AniList's genre list (checked against the GenreCollection query)
 VALID_GENRES = (
@@ -122,9 +125,9 @@ class _Parser:
                 f"unknown genre '{name}'.{hint} Valid: {', '.join(VALID_GENRES)}. Aliases: {', '.join(GENRE_ALIASES)}"
             )
 
-        close = difflib.get_close_matches(key, list(_LOOKUP), n=1, cutoff=0.6)
+        close = fuzzy_match(key, _LOOKUP)
         if close:
-            matched_canonical = _LOOKUP[close[0]]
+            matched_canonical = _LOOKUP[close]
             self.corrected_tokens[index] = matched_canonical.lower()
             self.had_typo = True
             return _has(matched_canonical)

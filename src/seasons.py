@@ -1,7 +1,6 @@
 # src/seasons.py
 
 import re
-import difflib
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -125,10 +124,10 @@ def _parse_season_item(item: str, previous: str | None) -> tuple[str, list[int] 
     key = ALIASES.get(key, key)
     if key not in (WILDCARD_ANY, WILDCARD_YEAR) and key not in SEASONS:
         valid = [s.lower() for s in SEASONS] + ["autumn", "any", "year"]
-        close = difflib.get_close_matches(name.lower(), valid, n=1, cutoff=0.6)
+        close = fuzzy_match(name.lower(), valid)
         if not close:
             raise ValueError(f"Unknown season '{name}'. Valid: winter, spring, summer, fall (autumn), any, year")
-        corrected_name = close[0]
+        corrected_name = close
         key = ALIASES.get(corrected_name.upper(), corrected_name.upper())
 
     corrected_item = f"{corrected_name}:{year_text}" if sep else corrected_name

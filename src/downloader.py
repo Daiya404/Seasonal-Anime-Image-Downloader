@@ -28,9 +28,14 @@ class Downloader:
         self.backoff = backoff
         self.title_languages = tuple(title_languages)
         self.force = force
-        self.session = requests.Session()
+        self._local = threading.local()
         self._rate_lock = threading.Lock()
         self._next_slot = 0.0
+
+    def _get_session(self) -> requests.Session:
+        if not hasattr(self._local, "session"):
+            self._local.session = requests.Session()
+        return self._local.session
 
     def _throttle(self):
         """Global spacing between requests, shared by all workers"""
@@ -56,7 +61,7 @@ class Downloader:
         existing = next(season_folder.glob(f"* - {item['id']} - *.jpg"), None)
         if not self.force and existing and existing.stat().st_size > 1024:
             if existing != filepath:
-                existing.rename(filepath)  # rank changed, fix the number
+                existing.replace(filepath)  # rank changed, fix the number
             logging.info(f"Skipping existing {filename}")
             return {"status": "skipped", "file": str(filepath), "title": title}
 
@@ -64,7 +69,7 @@ class Downloader:
         while attempt <= self.retries:
             try:
                 self._throttle()
-                resp = self.session.get(url, timeout=30)
+                resp = self._get_session().get(url, timeout=30)
                 resp.raise_for_status()
                 tmp = filepath.with_name(filepath.name + ".part")
                 with open(tmp, "wb") as f:

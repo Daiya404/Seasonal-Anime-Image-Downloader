@@ -46,7 +46,7 @@ def parse_choices(
     had_typo = False
 
     for value in values:
-        for part in value.split(","):
+        for part in re.split(r"[,\s]+", value):
             raw = part.strip()
             key = raw.lower()
             if not key:
@@ -152,20 +152,6 @@ def format_season_name(season: str, year: int) -> str:
     """
     season = season.strip().capitalize()
     return f"{season} {year}"
-
-
-def validate_season(season: str) -> bool:
-    """
-    Check if a season string is valid
-    
-    Args:
-        season: Season name to validate
-    
-    Returns:
-        True if valid, False otherwise
-    """
-    valid_seasons = {'winter', 'spring', 'summer', 'fall', 'autumn'}
-    return season.lower().strip() in valid_seasons
 
 
 def normalize_season(season: str) -> str:
