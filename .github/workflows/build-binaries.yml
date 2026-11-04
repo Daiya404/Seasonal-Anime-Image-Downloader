@@ -1,0 +1,280 @@
+name: Build Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA (full or short hash) to build (leave empty for latest)'
+        required: false
+        default: ''
+        type: string
+      create_release:
+        description: 'Create a GitHub Release from this build?'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release tag name (e.g. v1.0.0, recommended if creating a release)'
+        required: false
+        default: ''
+        type: string
+  push:
+    tags:
+      - 'v*'          # Automatically runs and publishes when creating a release tag
+    branches:
+      - main          # Verify compilation on pushes to main
+  pull_request:
+    branches:
+      - main          # Verify compilation on Pull Requests targeting main
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.gitattributes'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  check-version:
+    name: Verify Version Tag & Cache
+    runs-on: ubuntu-latest
+    outputs:
+      skip_build: ${{ steps.check_docs.outputs.skip_build }}
+      already_built: ${{ steps.check_existing.outputs.already_built }}
+      cached_run_id: ${{ steps.check_existing.outputs.cached_run_id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout custom commit
+        if: inputs.commit_sha != ''
+        run: git checkout ${{ inputs.commit_sha }}
+
+      - name: Check if build should be skipped on branch push
+        id: check_docs
+        run: |
+          # Only check skips on branch pushes (never on tags or manual runs)
+          if [[ "${{ github.ref }}" != refs/tags/* ]] && [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            TAGS_ON_HEAD=$(git tag --points-at HEAD "v*" || true)
+            if [ -n "$TAGS_ON_HEAD" ]; then
+              echo "Commit is tagged with $TAGS_ON_HEAD. Tag workflow will handle compilation and release. Skipping branch build."
+              echo "skip_build=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            if [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+              DIFF_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} || true)
+              CODE_CHANGES=$(echo "$DIFF_FILES" | grep -vE '^(\.gitignore|\.gitattributes|README\.md|LICENSE|\.vscode/|.*\.md)$' || true)
+              if [ -z "$CODE_CHANGES" ] && [ -n "$DIFF_FILES" ]; then
+                echo "Only doc/meta files changed. Skipping compilation."
+                echo "skip_build=true" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
+          fi
+          echo "skip_build=false" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate tag against src/__init__.py
+        run: |
+          python - << 'EOF'
+          import os
+          import sys
+          import re
+
+          # Determine the tag from git ref or manual workflow input
+          tag = ""
+          ref = os.environ.get("GITHUB_REF", "")
+          input_tag = os.environ.get("INPUT_RELEASE_TAG", "").strip()
+
+          if input_tag:
+              tag = input_tag
+          elif ref.startswith("refs/tags/"):
+              tag = ref.replace("refs/tags/", "")
+
+          if not tag:
+              print("No tag specified for this run. Skipping version check.")
+              sys.exit(0)
+
+          # Normalize tag (strip leading 'v' or 'V')
+          clean_tag = re.sub(r'^[vV]', '', tag)
+
+          # Extract __version__ from src/__init__.py
+          with open("src/__init__.py", "r", encoding="utf-8") as f:
+              m = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', f.read())
+              if not m:
+                  print("::error::Could not find __version__ in src/__init__.py")
+                  sys.exit(1)
+              project_version = m.group(1).strip()
+
+          print(f"Target tag: {tag} (normalized: {clean_tag})")
+          print(f"Project __version__: {project_version}")
+
+          if clean_tag != project_version:
+              print(f"::error::Version mismatch! Tag specifies '{tag}' (normalized: '{clean_tag}'), but src/__init__.py has '{project_version}'.")
+              sys.exit(1)
+
+          print("Version check passed: Tag matches project version.")
+          EOF
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+
+      - name: Check for existing build artifacts for this commit
+        id: check_existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TARGET_SHA="${{ inputs.commit_sha != '' && inputs.commit_sha || github.sha }}"
+          echo "Checking for existing successful builds of commit: $TARGET_SHA"
+
+          # Search for an earlier successful workflow run for this exact commit
+          PREV_RUN_ID=$(gh run list \
+            --workflow build-binaries.yml \
+            --commit "$TARGET_SHA" \
+            --status success \
+            --json databaseId \
+            --jq '.[0].databaseId' || true)
+
+          if [ -n "$PREV_RUN_ID" ] && [ "$PREV_RUN_ID" != "${{ github.run_id }}" ]; then
+            echo "Found existing successful build run: $PREV_RUN_ID"
+            echo "already_built=true" >> $GITHUB_OUTPUT
+            echo "cached_run_id=$PREV_RUN_ID" >> $GITHUB_OUTPUT
+          else
+            echo "No prior build artifacts found for this commit."
+            echo "already_built=false" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: check-version
+    if: |
+      needs.check-version.outputs.skip_build != 'true' &&
+      needs.check-version.outputs.already_built != 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x86_64
+            output_name: anime-downloader-windows-x86_64.exe
+          - os: ubuntu-latest
+            target: linux-x86_64
+            output_name: anime-downloader-linux-x86_64
+          - os: ubuntu-24.04-arm
+            target: linux-aarch64
+            output_name: anime-downloader-linux-aarch64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history so any commit hash or prefix can be checked out
+
+      - name: Checkout custom commit
+        if: inputs.commit_sha != ''
+        run: git checkout ${{ inputs.commit_sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf ccache
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install nuitka zstandard
+
+      - name: Build standalone binary with Nuitka
+        run: |
+          python -m nuitka --standalone --onefile --lto=auto --python-flag=-O --python-flag=no_docstrings --include-package=src --enable-plugin=anti-bloat --assume-yes-for-downloads --output-filename=${{ matrix.output_name }} run.py
+
+      - name: Set execution permissions (Linux)
+        if: runner.os == 'Linux'
+        run: chmod +x ${{ matrix.output_name }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ matrix.output_name }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [check-version, build]
+    if: |
+      always() &&
+      needs.check-version.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      needs.check-version.outputs.skip_build != 'true' &&
+      (
+        startsWith(github.ref, 'refs/tags/v') ||
+        (github.event_name == 'workflow_dispatch' && inputs.create_release == true)
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download artifacts from previous run
+        if: needs.check-version.outputs.already_built == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release-artifacts
+          echo "Reusing existing artifacts from run ${{ needs.check-version.outputs.cached_run_id }}..."
+          gh run download ${{ needs.check-version.outputs.cached_run_id }} --dir release-artifacts
+          find release-artifacts -type f -exec mv {} release-artifacts/ \;
+          find release-artifacts -mindepth 1 -type d -exec rm -rf {} +
+
+      - name: Download freshly built artifacts
+        if: needs.check-version.outputs.already_built != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Generate SHA-256 Checksums
+        run: |
+          cd release-artifacts
+          sha256sum anime-downloader* > checksums.sha256
+          echo "Generated SHA-256 Checksums:"
+          cat checksums.sha256
+
+      - name: Determine Release Tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.release_tag }}" ]; then
+            echo "tag=${{ inputs.release_tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ inputs.commit_sha }}" ]; then
+            echo "tag=release-${{ inputs.commit_sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=manual-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish Release with Assets & Checksums
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ inputs.commit_sha != '' && inputs.commit_sha || github.sha }}
+          files: release-artifacts/*
+          generate_release_notes: true
